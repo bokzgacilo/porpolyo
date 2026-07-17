@@ -1,14 +1,12 @@
 "use client";
 
 import {
-  ArrowLeft,
   Edit3,
   ExternalLink,
   Eye,
   LayoutTemplate,
   Plus,
   Settings,
-  UploadCloud,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Onboarding } from "./components/Onboarding";
@@ -16,6 +14,7 @@ import { LandingPage } from "./components/LandingPage";
 import { Dashboard } from "./components/Dashboard";
 import { Editor } from "./components/Editor";
 import { PortfolioPreview } from "./components/PortfolioPreview";
+import { PortfolioPreviewPage } from "./components/PortfolioPreviewPage";
 import { ProjectSettings } from "./components/ProjectSettings";
 import { createDefaultPortfolio } from "./data/defaultPortfolio";
 import { useEditorStore } from "./store/editorStore";
@@ -48,7 +47,13 @@ export function App() {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [portfoliosLoading, setPortfoliosLoading] = useState(false);
   const [error, setError] = useState("");
-  const { portfolio, setPortfolio, markSaved } = useEditorStore();
+  const {
+    portfolio,
+    previewMode,
+    setPortfolio,
+    setPreviewMode,
+    markSaved,
+  } = useEditorStore();
   const auth = useSupabaseAuth();
 
   useEffect(() => {
@@ -241,23 +246,21 @@ export function App() {
     return (
       <div>
         <PageMetadata portfolio={portfolio} />
-        {route === "preview" && (
-          <div className="preview-bar">
-            <button
-              onClick={() => navigate("editor", `/builder/${portfolio.id}`)}
-            >
-              <ArrowLeft size={16} /> Back to editor
-            </button>
-            <button onClick={publishPortfolio}>
-              <UploadCloud size={16} /> Publish
-            </button>
-          </div>
+        {route === "preview" ? (
+          <PortfolioPreviewPage
+            portfolio={portfolio}
+            previewMode={previewMode}
+            onPreviewModeChange={setPreviewMode}
+            onBack={() => navigate("editor", `/builder/${portfolio.id}`)}
+            onPublish={publishPortfolio}
+          />
+        ) : (
+          <PortfolioPreview
+            portfolio={portfolio}
+            selected={undefined}
+            onSelect={() => undefined}
+          />
         )}
-        <PortfolioPreview
-          portfolio={portfolio}
-          selected={undefined}
-          onSelect={() => undefined}
-        />
       </div>
     );
   }
@@ -323,6 +326,9 @@ function isRootPublicPath(path: string) {
     "templates",
     "settings",
     "portfolio",
+    "privacy",
+    "terms",
+    "dev",
     "api",
     "uploads",
   ]);

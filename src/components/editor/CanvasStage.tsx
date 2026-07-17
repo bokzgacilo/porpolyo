@@ -1,15 +1,15 @@
 import {
   ActionBar,
   Box,
-  Button,
   HStack,
+  IconButton,
   NativeSelect,
   Portal,
   Text,
 } from "@chakra-ui/react";
 import { useLayoutEffect, useRef, useState } from "react";
 import type React from "react";
-import { LuShare, LuTrash } from "react-icons/lu";
+import { LuShare, LuSquareDot, LuTrash } from "react-icons/lu";
 import { Portfolio, PreviewMode, SelectedElement } from "../../types/portfolio";
 import { selectedElementKey } from "../../utils/elementSettings";
 import { PortfolioPreview } from "../PortfolioPreview";
@@ -39,6 +39,7 @@ export function CanvasStage({
   pan,
   zoom,
   panning,
+  panReady,
   onPanChange,
   onZoomChange,
   onPreviewModeChange,
@@ -53,6 +54,7 @@ export function CanvasStage({
   pan: { x: number; y: number };
   zoom: number;
   panning: boolean;
+  panReady: boolean;
   onPanChange: (pan: { x: number; y: number }) => void;
   onZoomChange: (zoom: number) => void;
   onPreviewModeChange: (mode: PreviewMode) => void;
@@ -63,12 +65,25 @@ export function CanvasStage({
 }) {
   const stageRef = useRef<HTMLElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const [htmlSelector, setHtmlSelector] = useState("—");
+  const showBoxModelOverlay =
+    portfolio.settings.editor?.showBoxModelOverlay ?? true;
 
-  const fitWholePage = () => {
+  useLayoutEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      setHtmlSelector(
+        resolveHtmlSelector(viewportRef.current, selected, portfolio.sections),
+      );
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [portfolio, previewMode, selected]);
+
+  const resetToCenter = () => {
     const stage = stageRef.current;
-    const site =
-      viewportRef.current?.querySelector<HTMLElement>(".portfolio-site");
-    if (!stage || !site) return;
+    const viewport = viewportRef.current;
+    const site = viewport?.querySelector<HTMLElement>(".portfolio-site");
+    if (!stage || !viewport || !site) return;
 
     const availableWidth = Math.max(stage.clientWidth - 56, 1);
     const availableHeight = Math.max(stage.clientHeight - 96, 1);
@@ -80,21 +95,20 @@ export function CanvasStage({
       1,
     );
 
+    viewport.style.setProperty("transition", "none");
     onPanChange({ x: 0, y: 0 });
     onZoomChange(Number(fittedZoom.toFixed(2)));
-  };
 
-  const resetToCenter = () => {
-    const stage = stageRef.current;
-
-    onPanChange({ x: 0, y: 0 });
-    if (stage) {
-      stage.scrollTo({
-        left: Math.max((stage.scrollWidth - stage.clientWidth) / 2, 0),
-        top: 0,
-        behavior: "smooth",
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        stage.scrollTo({
+          left: Math.max((stage.scrollWidth - stage.clientWidth) / 2, 0),
+          top: 0,
+          behavior: "auto",
+        });
+        viewport.style.removeProperty("transition");
       });
-    }
+    });
   };
 
   const selectedZoom = zoomOptions.find(
@@ -105,7 +119,7 @@ export function CanvasStage({
     <Box
       as="section"
       ref={stageRef}
-      className={`canvas-stage ${previewMode} ${panning ? "panning" : ""}`}
+      className={`canvas-stage ${previewMode} ${panReady ? "pan-ready" : ""} ${panning ? "panning" : ""}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -113,12 +127,30 @@ export function CanvasStage({
     >
       <ActionBar.Root open={true}>
         <Portal>
-          <ActionBar.Positioner zIndex="max">
+          <ActionBar.Positioner zIndex="popover">
             <ActionBarContent>
-              <Text>{selectedLabel(selected, portfolio.sections)}</Text>
+              <Text fontSize="xs">
+                {selectedLabel(selected, portfolio.sections)}
+              </Text>
+              <ActionBar.Separator />
+              <Text
+                as="code"
+                maxW="210px"
+                rounded="sm"
+                bg="bg.subtle"
+                color="fg.muted"
+                fontFamily="mono"
+                fontSize="xs"
+                whiteSpace="nowrap"
+                truncate
+                title={htmlSelector}
+                aria-label={`Selected HTML selector: ${htmlSelector}`}
+              >
+                {htmlSelector}
+              </Text>
               <ActionBar.Separator />
               <HStack gap="2" data-canvas-control="true">
-                <NativeSelect.Root size="xs" width="120px">
+                <NativeSelect.Root size="xs" width="128px">
                   <NativeSelect.Field
                     aria-label="Preview breakpoint"
                     value={previewMode}
@@ -132,7 +164,7 @@ export function CanvasStage({
                   </NativeSelect.Field>
                   <NativeSelect.Indicator />
                 </NativeSelect.Root>
-                <NativeSelect.Root size="xs" width="150px">
+                <NativeSelect.Root size="xs" width="128px">
                   <NativeSelect.Field
                     aria-label="Canvas zoom"
                     value={
@@ -142,7 +174,7 @@ export function CanvasStage({
                     }
                     onChange={(event) => {
                       if (event.target.value === "fit") {
-                        fitWholePage();
+                        resetToCenter();
                         return;
                       }
                       if (event.target.value !== "custom") {
@@ -162,9 +194,15 @@ export function CanvasStage({
                   </NativeSelect.Field>
                   <NativeSelect.Indicator />
                 </NativeSelect.Root>
-                <Button onClick={resetToCenter} size="xs" variant="outline">
-                  Reset center
-                </Button>
+                <IconButton
+                  aria-label="Center canvas and zoom to fit"
+                  title="Center canvas and zoom to fit"
+                  onClick={resetToCenter}
+                  size="xs"
+                  variant="outline"
+                >
+                  <LuSquareDot />
+                </IconButton>
               </HStack>
             </ActionBarContent>
           </ActionBar.Positioner>
@@ -185,6 +223,7 @@ export function CanvasStage({
           zoom={zoom}
           pan={pan}
           previewMode={previewMode}
+          showBoxModel={showBoxModelOverlay}
         />
         <PortfolioPreview
           portfolio={portfolio}
@@ -204,6 +243,7 @@ function BoxModelOverlay({
   zoom,
   pan,
   previewMode,
+  showBoxModel,
 }: {
   portfolio: Portfolio;
   selected?: SelectedElement;
@@ -211,6 +251,7 @@ function BoxModelOverlay({
   zoom: number;
   pan: { x: number; y: number };
   previewMode: PreviewMode;
+  showBoxModel: boolean;
 }) {
   const [rects, setRects] = useState<BoxModelRects>();
 
@@ -221,14 +262,7 @@ function BoxModelOverlay({
       return;
     }
 
-    const key = selectedElementKey(selected);
-    const target = Array.from(
-      viewport.querySelectorAll<HTMLElement>("[data-editor-selection-key]"),
-    ).find(
-      (element) =>
-        element.dataset.editorSectionId === selected.sectionId &&
-        element.dataset.editorSelectionKey === key,
-    );
+    const target = findSelectedTarget(viewport, selected);
 
     if (!target) {
       setRects(undefined);
@@ -253,17 +287,127 @@ function BoxModelOverlay({
 
   return (
     <Box className="canvas-box-model-overlay" aria-hidden="true">
-      <OverlayLayer rect={rects.margin} className="box-model-overlay-margin" />
-      <OverlayLayer
-        rect={rects.padding}
-        className="box-model-overlay-padding"
-      />
+      {showBoxModel && (
+        <>
+          <OverlayLayer
+            rect={rects.margin}
+            className="box-model-overlay-margin"
+          />
+          <OverlayLayer
+            rect={rects.padding}
+            className="box-model-overlay-padding"
+          />
+        </>
+      )}
       <OverlayLayer
         rect={rects.content}
         className="box-model-overlay-content"
       />
     </Box>
   );
+}
+
+function findSelectedTarget(viewport: HTMLElement, selected: SelectedElement) {
+  if (!("sectionId" in selected)) return undefined;
+  const key = selectedElementKey(selected);
+  const matchingTargets = Array.from(
+    viewport.querySelectorAll<HTMLElement>("[data-editor-selection-key]"),
+  ).filter(
+    (element) =>
+      element.dataset.editorSectionId === selected.sectionId &&
+      element.dataset.editorSelectionKey === key,
+  );
+
+  return (
+    matchingTargets.find((element) => element.getClientRects().length > 0) ||
+    matchingTargets[0]
+  );
+}
+
+function resolveHtmlSelector(
+  viewport: HTMLElement | null,
+  selected: SelectedElement | undefined,
+  sections: Portfolio["sections"],
+) {
+  if (!selected) return "—";
+  if (selected.kind === "head" || selected.kind === "body") {
+    return selected.kind;
+  }
+
+  const selectedTarget = viewport
+    ? findSelectedTarget(viewport, selected)
+    : undefined;
+  const target =
+    selected.kind === "image"
+      ? selectedTarget?.querySelector<HTMLElement>("img") || selectedTarget
+      : selectedTarget;
+  const tagName =
+    selected.kind === "image"
+      ? "img"
+      : target?.tagName.toLowerCase() || fallbackTagName(selected, sections);
+  const id = target?.id || semanticSelectorId(selected, sections);
+
+  return id ? `${tagName}#${id}` : tagName;
+}
+
+function fallbackTagName(
+  selected: SelectedElement,
+  sections: Portfolio["sections"],
+) {
+  if (selected.kind === "section") {
+    const type = sections.find((item) => item.id === selected.sectionId)?.type;
+    if (type === "header" || type === "footer") return type;
+    return "section";
+  }
+  if (selected.kind === "image") return "img";
+  if (selected.kind === "text") {
+    if (selected.field === "headline") return "h1";
+    if (selected.field === "title") return "h2";
+    if (selected.field === "contactButton") return "a";
+    if (selected.field === "description") return "p";
+    return "span";
+  }
+  if (selected.kind === "layer") {
+    return selected.layerId.startsWith("navigation-link:") ? "a" : "div";
+  }
+  return "article";
+}
+
+function semanticSelectorId(
+  selected: SelectedElement,
+  sections: Portfolio["sections"],
+) {
+  if (!("sectionId" in selected)) return "";
+  const section = sections.find((item) => item.id === selected.sectionId);
+  const sectionName = section?.type || "element";
+
+  if (selected.kind === "section") return sectionName;
+  if (selected.kind === "image") return normalizeSelectorId(selected.slot);
+  if (selected.kind === "text") {
+    if (selected.field === "logoText") {
+      return sectionName === "footer" ? "footer-name" : `${sectionName}-logo`;
+    }
+    return `${sectionName}-${normalizeSelectorId(selected.field)}`;
+  }
+  if (selected.kind === "layer") {
+    if (selected.layerId.startsWith("navigation-link:")) {
+      const targetId = selected.layerId.slice("navigation-link:".length);
+      const targetSection = sections.find((item) => item.id === targetId);
+      return `navigation-${targetSection?.type || "link"}`;
+    }
+    return normalizeSelectorId(selected.layerId);
+  }
+  if (selected.kind === "project") return "project-card";
+  if (selected.kind === "certification") return "certification-card";
+  return "service-card";
+}
+
+function normalizeSelectorId(value: string) {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function OverlayLayer({

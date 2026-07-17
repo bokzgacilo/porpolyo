@@ -8,31 +8,45 @@ import {
   Button,
   HStack,
   IconButton,
+  Menu,
+  Portal,
   Stack,
   Text,
   Tabs,
 } from "@chakra-ui/react";
-import {
-  PanelLeftClose,
-  PanelLeftOpen,
-} from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import type { EditorHistoryEntry } from "../../store/editorStore";
 import {
   PortfolioSection,
+  CustomLayerType,
   SectionType,
   SelectedElement,
 } from "../../types/portfolio";
 import {
   collectionLabel,
+  customLayerIdFromSelection,
   getSectionLayers,
   isCollectionSection,
 } from "./layerHelpers";
+import { findCustomLayer } from "../../utils/customLayers";
 import { LayerTree } from "./LayerTree";
+import { HistoryPanel } from "./HistoryPanel";
 import {
   PageStructureRow,
   SectionRow,
   SortableSectionRow,
 } from "./SectionRows";
-import { LuGlobe, LuImage, LuLayers, LuPanelTop, LuPlus } from "react-icons/lu";
+import {
+  LuGlobe,
+  LuHistory,
+  LuImage,
+  LuImagePlus,
+  LuLayers,
+  LuPanelTop,
+  LuPlus,
+  LuSquareDashed,
+  LuType,
+} from "react-icons/lu";
 
 export function StructurePanel({
   sections,
@@ -50,10 +64,17 @@ export function StructurePanel({
   onToggleSectionLock,
   onAddSection,
   onAddCollectionItem,
+  onAddCustomLayer,
   onDeleteCollectionItem,
+  onDeleteCustomLayer,
   onExpandedLayersChange,
   onReorderCollectionItems,
+  onReorderCustomLayers,
+  onMoveCustomLayerToContainer,
   onSelect,
+  history,
+  currentHistoryLabel,
+  onRestoreHistory,
   collapsed,
   onCollapsedChange,
 }: {
@@ -74,20 +95,45 @@ export function StructurePanel({
     type: "projects" | "certifications" | "services" | "about",
   ) => void;
   onAddCollectionItem: (sectionId: string) => void;
+  onAddCustomLayer: (
+    sectionId: string,
+    type: CustomLayerType,
+    parentId?: string,
+  ) => void;
   onDeleteCollectionItem: (sectionId: string, itemId: string) => void;
+  onDeleteCustomLayer: (sectionId: string, layerId: string) => void;
   onExpandedLayersChange: (layerIds: string[]) => void;
   onReorderCollectionItems: (
     sectionId: string,
     activeId: string,
     overId: string,
   ) => void;
+  onReorderCustomLayers: (
+    sectionId: string,
+    activeId: string,
+    overId: string,
+  ) => void;
+  onMoveCustomLayerToContainer: (
+    sectionId: string,
+    activeId: string,
+    parentLayerId: string,
+  ) => void;
   onSelect: (selection: SelectedElement) => void;
+  history: EditorHistoryEntry[];
+  currentHistoryLabel: string;
+  onRestoreHistory: (entryId: string) => void;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
 }) {
   const expandedLayerIds = Object.keys(expandedLayers).filter(
     (layerId) => expandedLayers[layerId],
   );
+  const selectedCustomLayerId = customLayerIdFromSelection(selected);
+  const selectedCustomLayer = selectedSection
+    ? findCustomLayer(selectedSection.customLayers, selectedCustomLayerId || "")
+    : undefined;
+  const customLayerParentId =
+    selectedCustomLayer?.type === "div" ? selectedCustomLayer.id : undefined;
 
   if (collapsed) {
     return (
@@ -122,8 +168,8 @@ export function StructurePanel({
       as="aside"
       gap={0}
     >
-      <HStack justify="space-between" px={3} py={2}>
-        <Text fontSize="sm" fontWeight="semibold">
+      <HStack p={2} justify="space-between">
+        <Text color="fg" fontWeight="semibold">
           Navigator
         </Text>
         <IconButton
@@ -136,13 +182,16 @@ export function StructurePanel({
           <PanelLeftClose size={17} />
         </IconButton>
       </HStack>
-      <Tabs.Root defaultValue="sections">
+      <Tabs.Root variant="line" defaultValue="sections">
         <Tabs.List>
-          <Tabs.Trigger value="sections">
-            <LuLayers size={16} /> Sections
+          <Tabs.Trigger flex={1} value="sections">
+            <LuLayers /> Sections
           </Tabs.Trigger>
-          <Tabs.Trigger value="layers">
-            <LuImage size={16} /> Layers
+          <Tabs.Trigger flex={1} value="layers">
+            <LuImage /> Layers
+          </Tabs.Trigger>
+          <Tabs.Trigger flex={1} value="history">
+            <LuHistory /> History
           </Tabs.Trigger>
         </Tabs.List>
         <Tabs.Content pt={0} value="sections">
@@ -216,32 +265,107 @@ export function StructurePanel({
           </Stack>
         </Tabs.Content>
         <Tabs.Content value="layers">
-          <Stack>
+          <Stack px={4}>
             <HStack justify="space-between" align="center">
               <Text as="strong">
                 {selectedSection?.label || "No section"} layers
               </Text>
-              {selectedSection && isCollectionSection(selectedSection.type) && (
-                <IconButton
-                  aria-label={`Add ${collectionLabel(selectedSection.type)}`}
-                  title={`Add ${collectionLabel(selectedSection.type)}`}
-                  size="xs"
-                  variant="outline"
-                  onClick={() => onAddCollectionItem(selectedSection.id)}
-                >
-                  <LuPlus size={16} />
-                </IconButton>
-              )}
+              <HStack gap="1">
+                {selectedSection &&
+                  isCollectionSection(selectedSection.type) && (
+                    <IconButton
+                      aria-label={`Add ${collectionLabel(selectedSection.type)}`}
+                      title={`Add ${collectionLabel(selectedSection.type)}`}
+                      size="xs"
+                      variant="outline"
+                      onClick={() => onAddCollectionItem(selectedSection.id)}
+                    >
+                      <LuPlus size={16} />
+                    </IconButton>
+                  )}
+                {selectedSection && (
+                  <Menu.Root>
+                    <Menu.Trigger asChild>
+                      <IconButton
+                        aria-label="Add layer"
+                        title={
+                          customLayerParentId
+                            ? `Add inside ${selectedCustomLayer?.name}`
+                            : "Add layer to section"
+                        }
+                        size="xs"
+                      >
+                        <LuLayers size={16} />
+                      </IconButton>
+                    </Menu.Trigger>
+                    <Portal>
+                      <Menu.Positioner>
+                        <Menu.Content>
+                          <Menu.Item
+                            value="div"
+                            onSelect={() =>
+                              onAddCustomLayer(
+                                selectedSection.id,
+                                "div",
+                                customLayerParentId,
+                              )
+                            }
+                          >
+                            <LuSquareDashed /> Div container
+                          </Menu.Item>
+                          <Menu.Item
+                            value="text"
+                            onSelect={() =>
+                              onAddCustomLayer(
+                                selectedSection.id,
+                                "text",
+                                customLayerParentId,
+                              )
+                            }
+                          >
+                            <LuType /> Text
+                          </Menu.Item>
+                          <Menu.Item
+                            value="image"
+                            onSelect={() =>
+                              onAddCustomLayer(
+                                selectedSection.id,
+                                "image",
+                                customLayerParentId,
+                              )
+                            }
+                          >
+                            <LuImagePlus /> Image
+                          </Menu.Item>
+                        </Menu.Content>
+                      </Menu.Positioner>
+                    </Portal>
+                  </Menu.Root>
+                )}
+              </HStack>
             </HStack>
+            <Text px="1" color="fg.muted" fontSize="xs">
+              Drag a custom layer onto a Div or template container to nest it.
+              Template containers stay protected from deletion.
+            </Text>
             {selectedSection && (
               <LayerTree
-                layers={getSectionLayers(selectedSection)}
+                layers={getSectionLayers(selectedSection, sections)}
                 selected={selected}
                 sections={sections}
                 expandedLayerIds={expandedLayerIds}
                 onExpandedLayerIdsChange={onExpandedLayersChange}
                 onSelect={onSelect}
                 onRemove={(selection) => {
+                  const customId = customLayerIdFromSelection(selection);
+                  if (customId) {
+                    onDeleteCustomLayer(selectedSection.id, customId);
+                    onSelect({
+                      kind: "section",
+                      sectionId: selectedSection.id,
+                    });
+                    return;
+                  }
                   if ("itemId" in selection) {
                     onDeleteCollectionItem(
                       selectedSection.id,
@@ -253,12 +377,29 @@ export function StructurePanel({
                     });
                   }
                 }}
-                onReorderProject={(activeId, overId) =>
+                onReorderCollection={(activeId, overId) =>
                   onReorderCollectionItems(selectedSection.id, activeId, overId)
+                }
+                onReorderCustomLayer={(activeId, overId) =>
+                  onReorderCustomLayers(selectedSection.id, activeId, overId)
+                }
+                onMoveCustomLayerToContainer={(activeId, parentLayerId) =>
+                  onMoveCustomLayerToContainer(
+                    selectedSection.id,
+                    activeId,
+                    parentLayerId,
+                  )
                 }
               />
             )}
           </Stack>
+        </Tabs.Content>
+        <Tabs.Content p={0} value="history">
+          <HistoryPanel
+            history={history}
+            currentLabel={currentHistoryLabel}
+            onRestore={onRestoreHistory}
+          />
         </Tabs.Content>
       </Tabs.Root>
     </Stack>

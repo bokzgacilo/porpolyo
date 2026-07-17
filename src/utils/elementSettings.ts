@@ -24,11 +24,54 @@ export function toElementStyle(settings: ElementSettings | undefined): CSSProper
     color: settings.color,
     backgroundColor: settings.backgroundColor,
     fontFamily: settings.fontFamily,
-    fontSize: settings.fontSize !== undefined ? `${settings.fontSize}px` : undefined,
+    fontSize: typographyValue(
+      settings.fontSize,
+      settings.fontSizeUnit || "px",
+    ),
     fontWeight: settings.fontWeight,
-    lineHeight: settings.lineHeight,
-    letterSpacing: settings.letterSpacing !== undefined ? `${settings.letterSpacing}px` : undefined,
+    lineHeight: typographyValue(
+      settings.lineHeight,
+      settings.lineHeightUnit || "px",
+    ),
+    letterSpacing: typographyValue(
+      settings.letterSpacing,
+      settings.letterSpacingUnit || "px",
+    ),
     textAlign: settings.textAlign,
+    display:
+      settings.layoutMode === "grid"
+        ? "grid"
+        : settings.layoutMode === "stack"
+          ? "flex"
+          : undefined,
+    gridTemplateColumns:
+      settings.layoutMode === "grid"
+        ? `repeat(${settings.gridColumns || 1}, minmax(0, 1fr))`
+        : undefined,
+    columnGap:
+      settings.layoutMode === "grid"
+        ? `${settings.gridGapX || 0}px`
+        : undefined,
+    rowGap:
+      settings.layoutMode === "grid"
+        ? `${settings.gridGapY || 0}px`
+        : undefined,
+    flexDirection:
+      settings.layoutMode === "stack" ? settings.stackDirection : undefined,
+    alignItems:
+      settings.layoutMode === "stack" ? settings.stackAlign : undefined,
+    justifyContent:
+      settings.layoutMode === "stack" ? settings.stackJustify : undefined,
+    gap:
+      settings.layoutMode === "stack"
+        ? `${settings.stackGap || 0}px`
+        : undefined,
+    flexWrap:
+      settings.layoutMode === "stack"
+        ? settings.layoutWrap
+          ? "wrap"
+          : "nowrap"
+        : undefined,
     marginTop: spacingValue(settings.margin?.top),
     marginRight: spacingValue(settings.margin?.right),
     marginBottom: spacingValue(settings.margin?.bottom),
@@ -52,6 +95,13 @@ export function toElementStyle(settings: ElementSettings | undefined): CSSProper
 
 function spacingValue(value?: number) {
   return value !== undefined ? `${value}px` : undefined;
+}
+
+function typographyValue(
+  value: number | undefined,
+  unit: NonNullable<ElementSettings["fontSizeUnit"]>,
+) {
+  return value !== undefined ? `${value}${unit}` : undefined;
 }
 
 function sizeValue(size?: ElementSettings["width"]) {

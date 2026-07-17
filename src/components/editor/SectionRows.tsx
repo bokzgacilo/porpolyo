@@ -11,7 +11,8 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useEditorStore } from "../../store/editorStore";
 import { PortfolioSection, SelectedElement } from "../../types/portfolio";
-import { sectionIcons } from "./layerHelpers";
+import { getSectionLayoutMode } from "../../config/sectionLayoutSettings";
+import { Grid2X2, Rows3 } from "lucide-react";
 import {
   LuChevronDown,
   LuChevronRight,
@@ -153,7 +154,8 @@ export function SectionRow({
   };
 }) {
   const { selected, select } = useEditorStore();
-  const Icon = sectionIcons[section.type];
+  const layoutMode = getSectionLayoutMode(section);
+  const Icon = layoutMode === "grid" ? Grid2X2 : Rows3;
   const active =
     selected?.kind === "section" && selected.sectionId === section.id;
   const handleSelect = onSelect || select;
@@ -192,7 +194,14 @@ export function SectionRow({
               <LuLock size={16} />
             </Box>
           )}
-          <Icon size={16} />
+          <Box
+            as="span"
+            aria-label={`${layoutMode} layout`}
+            title={`${layoutMode === "grid" ? "Grid" : "Stack"} layout`}
+            color="fg.muted"
+          >
+            <Icon size={16} aria-hidden="true" />
+          </Box>
           <Text as="span" flex="1" textAlign="left" truncate>
             {section.label}
           </Text>

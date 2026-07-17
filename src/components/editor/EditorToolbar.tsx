@@ -1,15 +1,10 @@
 import { Button, HStack, IconButton, Stack, Text } from "@chakra-ui/react";
-import {
-  Eye,
-  Redo2,
-  Save,
-  Undo2,
-  UploadCloud,
-} from "lucide-react";
+import { Eye, Redo2, Save, Undo2, UploadCloud } from "lucide-react";
 import { palettes, templates } from "../../data/templates";
 import { Portfolio } from "../../types/portfolio";
-import { LuSettings } from "react-icons/lu";
+import { LuFlagTriangleRight, LuSettings } from "react-icons/lu";
 import { ColorModeButton } from "../ui/color-mode";
+import { EditorTourButton } from "./EditorTourButton";
 
 export function EditorToolbar({
   portfolio,
@@ -18,6 +13,8 @@ export function EditorToolbar({
   onRedo,
   onSave,
   onSettings,
+  onStartTour,
+  alwaysOpenTour,
   onPreview,
   onPublish,
 }: {
@@ -27,6 +24,8 @@ export function EditorToolbar({
   onRedo: () => void;
   onSave: () => void;
   onSettings: () => void;
+  onStartTour: () => void;
+  alwaysOpenTour: boolean;
   onPreview: () => void;
   onPublish: () => void;
 }) {
@@ -39,26 +38,28 @@ export function EditorToolbar({
         bg="bg"
         borderBottom="1px solid"
         borderBottomColor="border"
-        p={4}
+        p={0}
         as="header"
         align="center"
         justify="space-between"
-        gap="3"
+        // gap="3"
       >
-        <Stack gap={0}>
+        <Stack pl={4} gap={0}>
           <Text color="fg" fontWeight="bold">
             {portfolio.title}
           </Text>
-          <Text color="fg.muted" fontSize="xs">
+          <Text color="fg.muted" fontSize="10px" fontWeight="semibold">
             {template.name} · {palette.name} {unsaved ? "· Unsaved" : "· Saved"}
           </Text>
         </Stack>
-        <HStack>
+
+        <HStack gap={0} p={0}>
           <IconButton
             aria-label="Undo"
             title="Undo"
             onClick={onUndo}
-            variant="outline"
+            variant="ghost"
+            rounded={0}
           >
             <Undo2 size={16} />
           </IconButton>
@@ -66,7 +67,8 @@ export function EditorToolbar({
             aria-label="Redo"
             title="Redo"
             onClick={onRedo}
-            variant="outline"
+            variant="ghost"
+            rounded={0}
           >
             <Redo2 size={16} />
           </IconButton>
@@ -74,24 +76,24 @@ export function EditorToolbar({
             onClick={onSettings}
             aria-label="Project settings"
             title="Project settings"
-            variant="outline"
+            variant="ghost"
+            rounded={0}
           >
             <LuSettings size={16} />
           </IconButton>
-          <IconButton
-            aria-label="Preview portfolio"
-            onClick={onPreview}
-            title="Preview"
-            variant="outline"
-          >
-            <Eye size={16} />
-          </IconButton>
-          <ColorModeButton variant="outline" />
-          <Button title="Save" onClick={onSave} variant="outline">
+          <EditorTourButton
+            alwaysOpen={alwaysOpenTour}
+            onBeforeStart={onStartTour}
+          />
+          <ColorModeButton size="md" variant="ghost" />
+          <Button rounded={0} title="Save" onClick={onSave} variant="ghost">
             <Save size={16} /> Save
           </Button>
-          <Button onClick={onPublish}>
-            <UploadCloud size={16} /> Publish / Export
+          <Button colorPalette="blue" onClick={onPreview} rounded={0}>
+            <Eye size={16} /> Preview
+          </Button>
+          <Button onClick={onPublish} rounded={0}>
+            <LuFlagTriangleRight size={16} /> Go Live
           </Button>
         </HStack>
       </HStack>

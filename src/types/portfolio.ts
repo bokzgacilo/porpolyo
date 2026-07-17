@@ -14,9 +14,19 @@ export interface ImageAsset {
   url: string;
   alt: string;
   slot: string;
-  objectFit?: "cover" | "contain";
+  objectFit?: "cover" | "contain" | "fill" | "none" | "scale-down";
   objectPosition?: string;
-  shape?: "square" | "rounded" | "circle" | "arch";
+  shape?: "auto" | "square" | "rounded" | "circle" | "arch";
+  width?: SizeValue;
+  height?: SizeValue;
+  aspectRatio?:
+    | "auto"
+    | "1 / 1"
+    | "4 / 3"
+    | "16 / 9"
+    | "3 / 4"
+    | "4 / 5"
+    | "21 / 9";
 }
 
 export interface SocialLink {
@@ -40,6 +50,21 @@ export interface PersonalInformation {
 }
 
 export interface SectionSettings {
+  layoutMode?: "grid" | "stack";
+  gridColumns?: number;
+  gridGapX?: number;
+  gridGapY?: number;
+  stackDirection?: "row" | "column";
+  stackAlign?: "stretch" | "flex-start" | "center" | "flex-end";
+  stackJustify?:
+    | "flex-start"
+    | "center"
+    | "flex-end"
+    | "space-between"
+    | "space-around"
+    | "space-evenly";
+  stackGap?: number;
+  layoutWrap?: boolean;
   backgroundColor?: string;
   textColor?: string;
   accentColor?: string;
@@ -67,13 +92,25 @@ export interface BoxSpacing {
 }
 
 export interface ElementSettings {
+  layoutMode?: "grid" | "stack";
+  gridColumns?: number;
+  gridGapX?: number;
+  gridGapY?: number;
+  stackDirection?: "row" | "column";
+  stackAlign?: "stretch" | "flex-start" | "center" | "flex-end";
+  stackJustify?: SectionSettings["stackJustify"];
+  stackGap?: number;
+  layoutWrap?: boolean;
   color?: string;
   backgroundColor?: string;
   fontFamily?: string;
   fontSize?: number;
+  fontSizeUnit?: TypographyUnit;
   fontWeight?: number;
   lineHeight?: number;
+  lineHeightUnit?: TypographyUnit;
   letterSpacing?: number;
+  letterSpacingUnit?: TypographyUnit;
   textAlign?: "left" | "center" | "right";
   margin?: BoxSpacing;
   padding?: BoxSpacing;
@@ -86,6 +123,8 @@ export interface ElementSettings {
   height?: SizeValue;
   spanSection?: boolean;
 }
+
+export type TypographyUnit = "rem" | "em" | "px" | "%" | "ch";
 
 export interface SizeValue {
   value?: number;
@@ -137,6 +176,19 @@ export interface PortfolioSection {
   content: Record<string, unknown>;
   settings: SectionSettings;
   elements?: Record<string, ElementSettings>;
+  customLayers?: CustomLayer[];
+}
+
+export type CustomLayerType = "div" | "text" | "image";
+
+export interface CustomLayer {
+  id: string;
+  type: CustomLayerType;
+  name: string;
+  text?: string;
+  image?: ImageAsset;
+  parentLayerId?: string;
+  children?: CustomLayer[];
 }
 
 export interface PortfolioSettings {
@@ -150,6 +202,8 @@ export interface EditorSettings {
   propertiesPanelWidth?: number;
   propertiesPanelMinWidth?: number;
   propertiesPanelMaxWidth?: number;
+  alwaysOpenTour?: boolean;
+  showBoxModelOverlay?: boolean;
 }
 
 export interface PortfolioHead {

@@ -2,6 +2,16 @@ import type React from "react";
 import { useState } from "react";
 import { palettes, templates } from "../data/templates";
 import { limits } from "../data/limits";
+import {
+  defaultImageSettings,
+  imageAspectRatioOptions,
+  imageCropPositionOptions,
+  imageObjectFitOptions,
+  imageShapeOptions,
+  toImageContentStyle,
+  toImageFrameStyle,
+} from "../config/imageSettings";
+import { resolveSectionLayoutSettings } from "../config/sectionLayoutSettings";
 import { uploadImageToSupabase } from "../lib/uploadImage";
 import { useEditorStore } from "../store/editorStore";
 import {
@@ -10,80 +20,145 @@ import {
   ColorPalette,
   ElementSettings,
   ImageAsset,
+  PortfolioSection,
   ProjectItem,
   SectionSettings,
   SelectedElement,
   ServiceItem,
-  SizeValue,
 } from "../types/portfolio";
 import {
   getElementSettings,
   selectedElementKey,
 } from "../utils/elementSettings";
+import { findCustomLayer } from "../utils/customLayers";
 import {
+  Box,
+  Button,
   Checkbox,
   Field,
-  Input,
   NativeSelect,
   Stack,
+  Tabs,
   Text,
 } from "@chakra-ui/react";
 import {
   LuChevronDown,
   LuChevronRight,
+  LuClipboardPen,
   LuImagePlus,
+  LuPaintbrush,
   LuPlus,
   LuTrash2,
 } from "react-icons/lu";
 import {
   BoxModelPreview,
   BoxSpacingInput,
+  LayoutStructurePreview,
   resolveBoxSpacing,
   useComputedBoxModel,
+  useComputedLayoutStructure,
   type ComputedBoxModel,
+  type ComputedLayoutStructure,
 } from "./boxmodel";
-import { InputField } from "./custom/InputField";
+import {
+  BoxShadowInput,
+  ColorInput,
+  FontFamilyPicker,
+  InputField,
+  normalizeColor,
+  NumberInput,
+  SizeInput,
+  TextAreaInput,
+  TextInput,
+  TypographyUnitInput,
+} from "./inputs";
+import { SectionLayoutControls } from "./properties/SectionLayoutControls";
+import { ElementLayoutControls } from "./properties/ElementLayoutControls";
+import {
+  customLayerIdFromSelection,
+  isNativeContainerLayerId,
+} from "./editor/layerHelpers";
 
 export function PropertiesPanel() {
   const store = useEditorStore();
   const { portfolio, selected } = store;
   const computedBoxModel = useComputedBoxModel(selected, portfolio);
+  const computedLayoutStructure = useComputedLayoutStructure(
+    selected,
+    portfolio,
+  );
   if (!portfolio || !selected) {
     return (
-      <aside className="right-panel">
-        <Text>Properties</Text>
-        <p>Select a section or element.</p>
-      </aside>
+      <Stack
+        bg="bg"
+        borderLeft="1px solid"
+        borderLeftColor="border"
+        as="aside"
+        p={4}
+        gap={2}
+        height="full"
+        minHeight={0}
+        maxHeight="full"
+        overflowX="hidden"
+        overflowY="auto"
+      >
+        <Text color="fg" fontWeight="semibold">
+          Properties
+        </Text>
+        <Text>Select a section or element.</Text>
+      </Stack>
     );
   }
 
   if (selected.kind === "head") {
     return (
-      <aside className="right-panel">
-        <Text>Properties</Text>
-        <div className="inspector-meta">
-          <span>Page Head</span>
-        </div>
-        <p className="panel-note">
+      <Stack
+        bg="bg"
+        borderLeft="1px solid"
+        borderLeftColor="border"
+        as="aside"
+        p={4}
+        gap={4}
+        height="full"
+        minHeight={0}
+        maxHeight="full"
+        overflowX="hidden"
+        overflowY="auto"
+      >
+        <Text color="fg" fontWeight="semibold">
+          Page Head
+        </Text>
+        <Text color="fg.muted">
           Use the center form to edit page metadata. These values are saved in
           the portfolio JSON under <code>head</code>.
-        </p>
-      </aside>
+        </Text>
+      </Stack>
     );
   }
 
   if (selected.kind === "body") {
     return (
-      <aside className="right-panel">
-        <Text>Properties</Text>
-        <div className="inspector-meta">
-          <span>Page Body</span>
-        </div>
-        <p className="panel-note">
+      <Stack
+        bg="bg"
+        borderLeft="1px solid"
+        borderLeftColor="border"
+        as="aside"
+        p={4}
+        gap={4}
+        height="full"
+        minHeight={0}
+        maxHeight="full"
+        overflowX="hidden"
+        overflowY="auto"
+      >
+        <Text color="fg" fontWeight="semibold">
+          Page Body
+        </Text>
+        <Text color="fg.muted">
           Body contains all visible portfolio sections. Select a child section
           to edit its layout and styles.
-        </p>
-      </aside>
+        </Text>
+      </Stack>
     );
   }
 
@@ -93,13 +168,28 @@ export function PropertiesPanel() {
       : undefined;
   const palette = palettes.find((item) => item.id === portfolio.paletteId)!;
   const template = templates.find((item) => item.id === portfolio.templateId)!;
+  const templateFontFamily =
+    template.id === "minimalist"
+      ? "ui-sans-serif, system-ui, sans-serif"
+      : 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   if (!section) return null;
 
   const selectedKey =
     selected.kind === "section" ? undefined : selectedElementKey(selected);
+  const selectedCustomLayerId = customLayerIdFromSelection(selected);
+  const selectedCustomLayer = selectedCustomLayerId
+    ? findCustomLayer(section.customLayers, selectedCustomLayerId)
+    : undefined;
+  const selectedIsContainer =
+    selectedCustomLayer?.type === "div" ||
+    (selected.kind === "layer" && isNativeContainerLayerId(selected.layerId));
   const elementSettings = selectedKey
     ? getElementSettings(section, selectedKey)
     : undefined;
+  const displayedLayoutStructure =
+    selected.kind === "section"
+      ? configuredSectionLayout(section, computedLayoutStructure)
+      : computedLayoutStructure;
   const sectionMargin = resolveBoxSpacing(
     legacySectionMargin(section.settings),
     computedBoxModel?.margin,
@@ -127,446 +217,628 @@ export function PropertiesPanel() {
       overflowX="hidden"
       overflowY="auto"
     >
-      <Text p={4} color="fg" fontSize="22px" fontWeight="semibold">
+      <Text px={4} pt={4} color="fg" fontWeight="semibold">
         Properties
       </Text>
-      <BoxModelPreview
-        margin={sectionMargin}
-        padding={sectionPadding}
-        borderWidth={
-          section.settings.borderWidth ?? computedBoxModel?.borderWidth
-        }
-      />
+      <Tabs.Root defaultValue="content" variant="line">
+        <Tabs.List>
+          <Tabs.Trigger flex={1} value="content">
+            <LuClipboardPen />
+            Content
+          </Tabs.Trigger>
+          <Tabs.Trigger flex={1} value="styling">
+            <LuPaintbrush />
+            Styling
+          </Tabs.Trigger>
+        </Tabs.List>
 
-      {selected.kind === "section" && (
-        <Stack gap={0}>
-          <PropertyGroup title="Section" defaultOpen>
-            <InputField
-              label="Internal Section Label"
-              value={section.label}
-              limit={16}
-              onChange={(event) =>
-                store.updateSection(section.id, { label: event.target.value })
-              }
-            />
-            {section.type === "header" && (
-              <>
-                <InputField
-                  label="Logo / Name"
-                  value={String(
-                    section.content.logoText || portfolio.owner.fullName,
-                  )}
-                  limit={60}
-                  onChange={(value) =>
-                    store.updateSectionContent(section.id, "logoText", value)
-                  }
-                />
-                <InputField
-                  label="Contact Button"
-                  value={String(section.content.contactButton || "Contact")}
-                  limit={40}
-                  onChange={(value) =>
-                    store.updateSectionContent(
-                      section.id,
-                      "contactButton",
-                      value,
-                    )
-                  }
-                />
-              </>
-            )}
-            {section.type === "footer" && (
-              <>
-                <TextInput
-                  label="Footer name / logo"
-                  value={String(
-                    section.content.logoText || portfolio.owner.fullName,
-                  )}
-                  limit={60}
-                  onChange={(value) =>
-                    store.updateSectionContent(section.id, "logoText", value)
-                  }
-                />
-                <TextInput
-                  label="Footer message"
-                  value={String(section.content.message || "")}
-                  limit={160}
-                  onChange={(value) =>
-                    store.updateSectionContent(section.id, "message", value)
-                  }
-                />
-                <TextInput
-                  label="Copyright text"
-                  value={String(section.content.copyright || "")}
-                  limit={160}
-                  onChange={(value) =>
-                    store.updateSectionContent(section.id, "copyright", value)
-                  }
-                />
-              </>
-            )}
-            {isCollectionSection(section.type) && (
-              <button onClick={() => store.addCollectionItem(section.id)}>
-                <LuPlus /> Add {collectionLabel(section.type)}
-              </button>
-            )}
-            <Checkbox.Root
-              checked={section.visible}
-              onCheckedChange={(e) =>
-                store.updateSection(section.id, {
-                  visible: !!e.checked,
-                })
-              }
-            >
-              <Checkbox.HiddenInput />
-              <Checkbox.Control />
-              <Checkbox.Label>Visible</Checkbox.Label>
-            </Checkbox.Root>
-          </PropertyGroup>
-
-          <PropertyGroup title="Layout" defaultOpen>
-            <Field.Root>
-              <Field.Label>Alignment</Field.Label>
-              <NativeSelect.Root>
-                <NativeSelect.Field
-                  value={section.settings.alignment || "left"}
-                  onChange={(event) =>
-                    store.updateSection(section.id, {
-                      settings: {
-                        ...section.settings,
-                        alignment: event.currentTarget.value as never,
-                      },
-                    })
-                  }
-                >
-                  <option value="left">Left</option>
-                  <option value="center">Center</option>
-                  <option value="right">Right</option>
-                </NativeSelect.Field>
-                <NativeSelect.Indicator />
-              </NativeSelect.Root>
-            </Field.Root>
-            <Field.Root>
-              <Field.Label>Section Spacing</Field.Label>
-              <NativeSelect.Root>
-                <NativeSelect.Field
-                  value={section.settings.spacing || "medium"}
-                  onChange={(event) =>
-                    store.updateSection(section.id, {
-                      settings: {
-                        ...section.settings,
-                        spacing: event.target.value as never,
-                      },
-                    })
-                  }
-                >
-                  <option value="small">Small</option>
-                  <option value="medium">Medium</option>
-                  <option value="large">Large</option>
-                </NativeSelect.Field>
-                <NativeSelect.Indicator />
-              </NativeSelect.Root>
-            </Field.Root>
-            <label className="field">
-              <span>Content width</span>
-              <select
-                value={section.settings.contentWidth || "standard"}
+        <Tabs.Content value="content" p={0}>
+          {selected.kind === "section" && (
+            <PropertyGroup title="Section" defaultOpen>
+              <InputField
+                label="Internal Section Label"
+                value={section.label}
+                limit={16}
                 onChange={(event) =>
+                  store.updateSection(section.id, { label: event.target.value })
+                }
+              />
+              {section.type === "header" && (
+                <>
+                  <InputField
+                    label="Logo / Name"
+                    value={String(
+                      section.content.logoText || portfolio.owner.fullName,
+                    )}
+                    limit={60}
+                    onChange={(value) =>
+                      store.updateSectionContent(section.id, "logoText", value)
+                    }
+                  />
+                  <InputField
+                    label="Contact Button"
+                    value={String(section.content.contactButton || "Contact")}
+                    limit={40}
+                    onChange={(value) =>
+                      store.updateSectionContent(
+                        section.id,
+                        "contactButton",
+                        value,
+                      )
+                    }
+                  />
+                </>
+              )}
+              {section.type === "footer" && (
+                <>
+                  <TextInput
+                    label="Footer name / logo"
+                    value={String(
+                      section.content.logoText || portfolio.owner.fullName,
+                    )}
+                    limit={60}
+                    onChange={(value) =>
+                      store.updateSectionContent(section.id, "logoText", value)
+                    }
+                  />
+                  <TextInput
+                    label="Footer message"
+                    value={String(section.content.message || "")}
+                    limit={160}
+                    onChange={(value) =>
+                      store.updateSectionContent(section.id, "message", value)
+                    }
+                  />
+                  <TextInput
+                    label="Copyright text"
+                    value={String(section.content.copyright || "")}
+                    limit={160}
+                    onChange={(value) =>
+                      store.updateSectionContent(section.id, "copyright", value)
+                    }
+                  />
+                </>
+              )}
+              {isCollectionSection(section.type) && (
+                <button onClick={() => store.addCollectionItem(section.id)}>
+                  <LuPlus /> Add {collectionLabel(section.type)}
+                </button>
+              )}
+              <Checkbox.Root
+                checked={section.visible}
+                onCheckedChange={(event) =>
                   store.updateSection(section.id, {
-                    settings: {
-                      ...section.settings,
-                      contentWidth: event.target.value as never,
-                    },
+                    visible: !!event.checked,
                   })
                 }
               >
-                <option value="narrow">Narrow</option>
-                <option value="standard">Standard</option>
-                <option value="wide">Wide</option>
-              </select>
-            </label>
-          </PropertyGroup>
-          <PropertyGroup title="Color">
-            <ColorInput
-              label="Background color"
-              value={section.settings.backgroundColor || ""}
-              fallback={palette.background}
-              swatches={paletteSwatches(palette)}
-              onChange={(value) =>
-                store.updateSection(section.id, {
-                  settings: { ...section.settings, backgroundColor: value },
-                })
-              }
-            />
-            <ColorInput
-              label="Text color"
-              value={section.settings.textColor || ""}
-              fallback={palette.text}
-              swatches={paletteSwatches(palette)}
-              onChange={(value) =>
-                store.updateSection(section.id, {
-                  settings: { ...section.settings, textColor: value },
-                })
-              }
-            />
-          </PropertyGroup>
-          <PropertyGroup title="Spacing">
-            <BoxSpacingInput
-              label="Margin"
-              value={sectionMargin}
-              onChange={(margin) =>
-                store.updateSection(section.id, {
-                  settings: { ...section.settings, margin },
-                })
-              }
-            />
-            <BoxSpacingInput
-              label="Padding"
-              value={sectionPadding}
-              onChange={(padding) =>
-                store.updateSection(section.id, {
-                  settings: { ...section.settings, padding },
-                })
-              }
-            />
-          </PropertyGroup>
-          <PropertyGroup title="Border">
-            <ColorInput
-              label="Border color"
-              value={section.settings.borderColor || ""}
-              fallback={palette.border}
-              swatches={paletteSwatches(palette)}
-              onChange={(value) =>
-                store.updateSection(section.id, {
-                  settings: { ...section.settings, borderColor: value },
-                })
-              }
-            />
-            <NumberInput
-              label="Border width"
-              value={section.settings.borderWidth}
-              onChange={(borderWidth) =>
-                store.updateSection(section.id, {
-                  settings: { ...section.settings, borderWidth },
-                })
-              }
-            />
-            <label className="field">
-              <span>Border style</span>
-              <select
-                value={section.settings.borderStyle || "none"}
-                onChange={(event) =>
-                  store.updateSection(section.id, {
-                    settings: {
-                      ...section.settings,
-                      borderStyle: event.target.value as never,
-                    },
-                  })
-                }
-              >
-                <option value="none">None</option>
-                <option value="solid">Solid</option>
-                <option value="dashed">Dashed</option>
-                <option value="dotted">Dotted</option>
-              </select>
-            </label>
-            <NumberInput
-              label="Border radius"
-              value={section.settings.borderRadius}
-              onChange={(borderRadius) =>
-                store.updateSection(section.id, {
-                  settings: { ...section.settings, borderRadius },
-                })
-              }
-            />
-          </PropertyGroup>
-        </Stack>
-      )}
+                <Checkbox.HiddenInput />
+                <Checkbox.Control />
+                <Checkbox.Label>Visible</Checkbox.Label>
+              </Checkbox.Root>
+            </PropertyGroup>
+          )}
 
-      {selected.kind === "text" && (
-        <Stack gap={0}>
-          <PropertyGroup title="Content" defaultOpen>
-            <TextArea
-              label={selected.label}
-              value={String(section.content[selected.field] || "")}
-              limit={selected.limit}
-              onChange={(value) =>
-                store.updateSectionContent(
-                  section.id,
-                  selected.field,
-                  value.slice(0, selected.limit),
-                )
-              }
-            />
-          </PropertyGroup>
-          <ElementStyleControls
-            selected={selected}
-            settings={elementSettings || {}}
-            fallbackColor={section.settings.textColor || palette.text}
-            swatches={paletteSwatches(palette)}
-            computedBoxModel={computedBoxModel}
-            includeText
-            onChange={updateSelectedElement}
-          />
-          <label className="toggle-line">
-            <input type="checkbox" defaultChecked /> Visibility
-          </label>
-        </Stack>
-      )}
-
-      {selected.kind === "layer" && (
-        <Stack gap={0}>
-          {getNestedImageTarget(selected) && (
-            <PropertyGroup title="Image" defaultOpen>
-              <NestedImageInspector
-                selected={selected}
-                section={section}
-                projectId={portfolio.id}
-                onChange={(itemId, field, image) =>
-                  store.updateCollectionItem(section.id, itemId, {
-                    [field]: image,
-                  })
+          {selected.kind === "text" && (
+            <PropertyGroup title="Content" defaultOpen>
+              <TextAreaInput
+                label={selected.label}
+                value={String(section.content[selected.field] || "")}
+                limit={selected.limit}
+                onChange={(value) =>
+                  store.updateSectionContent(
+                    section.id,
+                    selected.field,
+                    value.slice(0, selected.limit),
+                  )
                 }
               />
             </PropertyGroup>
           )}
-          <ElementStyleControls
-            selected={selected}
-            settings={elementSettings || {}}
-            fallbackColor={section.settings.textColor || palette.text}
-            swatches={paletteSwatches(palette)}
-            computedBoxModel={computedBoxModel}
-            onChange={updateSelectedElement}
-          />
-        </Stack>
-      )}
 
-      {selected.kind === "image" && (
-        <Stack gap={0}>
-          <PropertyGroup title="Image" defaultOpen>
-            <ImageInspector
-              image={section.content[selected.field] as ImageAsset | undefined}
-              slot={selected.slot}
-              label={selected.label}
-              projectId={portfolio.id}
-              onChange={(image) =>
-                store.updateSectionImage(section.id, selected.field, image)
+          {selected.kind === "layer" && (
+            <Stack gap={0}>
+              {selectedCustomLayer && (
+                <PropertyGroup title="Custom layer" defaultOpen>
+                  <InputField
+                    label="Layer name"
+                    value={selectedCustomLayer.name}
+                    onChange={(event) =>
+                      store.updateCustomLayer(
+                        section.id,
+                        selectedCustomLayer.id,
+                        {
+                          name: event.target.value,
+                        },
+                      )
+                    }
+                  />
+                  {selectedCustomLayer.type === "div" && (
+                    <Text p={4} color="fg.muted" fontSize="sm">
+                      Select this Div, then use Add layer to place Text, Image,
+                      or another Div inside it.
+                    </Text>
+                  )}
+                  {selectedCustomLayer.type === "text" && (
+                    <TextAreaInput
+                      label="Text content"
+                      value={selectedCustomLayer.text || ""}
+                      limit={1000}
+                      onChange={(text) =>
+                        store.updateCustomLayer(
+                          section.id,
+                          selectedCustomLayer.id,
+                          { text: text.slice(0, 1000) },
+                        )
+                      }
+                    />
+                  )}
+                  {selectedCustomLayer.type === "image" && (
+                    <ImageInspector
+                      image={selectedCustomLayer.image}
+                      slot={`custom-${selectedCustomLayer.id}`}
+                      label={selectedCustomLayer.name}
+                      projectId={portfolio.id}
+                      onChange={(image) =>
+                        store.updateCustomLayer(
+                          section.id,
+                          selectedCustomLayer.id,
+                          { image },
+                        )
+                      }
+                    />
+                  )}
+                </PropertyGroup>
+              )}
+              {section.type === "header" &&
+                !selectedCustomLayer &&
+                selected.layerId === "navigation" && (
+                  <ResponsiveNavigationControls
+                    section={section}
+                    onChange={(field, value) =>
+                      store.updateSectionContent(section.id, field, value)
+                    }
+                  />
+                )}
+              {!selectedCustomLayer && getNestedImageTarget(selected) && (
+                <PropertyGroup title="Image" defaultOpen>
+                  <NestedImageInspector
+                    selected={selected}
+                    section={section}
+                    projectId={portfolio.id}
+                    onChange={(itemId, field, image) =>
+                      store.updateCollectionItem(section.id, itemId, {
+                        [field]: image,
+                      })
+                    }
+                  />
+                </PropertyGroup>
+              )}
+              {!(
+                section.type === "header" && selected.layerId === "navigation"
+              ) &&
+                !selectedCustomLayer &&
+                !getNestedImageTarget(selected) && (
+                  <Text p={4} color="fg.muted" fontSize="sm">
+                    This layer has styling controls only.
+                  </Text>
+                )}
+            </Stack>
+          )}
+
+          {selected.kind === "image" && (
+            <PropertyGroup title="Image" defaultOpen>
+              <ImageInspector
+                image={
+                  section.content[selected.field] as ImageAsset | undefined
+                }
+                slot={selected.slot}
+                label={selected.label}
+                projectId={portfolio.id}
+                onChange={(image) =>
+                  store.updateSectionImage(section.id, selected.field, image)
+                }
+              />
+            </PropertyGroup>
+          )}
+
+          {selected.kind === "project" && (
+            <CollectionInspector
+              type="project"
+              item={(section.content.items as ProjectItem[]).find(
+                (item) => item.id === selected.itemId,
+              )}
+              onAdd={() => store.addCollectionItem(section.id)}
+              onDelete={() =>
+                store.deleteCollectionItem(section.id, selected.itemId)
+              }
+              onChange={(value) =>
+                store.updateCollectionItem(section.id, selected.itemId, value)
               }
             />
-          </PropertyGroup>
-          <ElementStyleControls
-            selected={selected}
-            settings={elementSettings || {}}
-            fallbackColor={section.settings.textColor || palette.text}
-            swatches={paletteSwatches(palette)}
-            computedBoxModel={computedBoxModel}
-            onChange={updateSelectedElement}
-          />
-        </Stack>
-      )}
+          )}
 
-      {selected.kind === "project" && (
-        <Stack gap={0}>
-          <CollectionInspector
-            type="project"
-            item={(section.content.items as ProjectItem[]).find(
-              (item) => item.id === selected.itemId,
-            )}
-            onAdd={() => store.addCollectionItem(section.id)}
-            onDelete={() =>
-              store.deleteCollectionItem(section.id, selected.itemId)
-            }
-            onChange={(value) =>
-              store.updateCollectionItem(section.id, selected.itemId, value)
-            }
-          />
-          <ElementStyleControls
-            selected={selected}
-            settings={elementSettings || {}}
-            fallbackColor={section.settings.textColor || palette.text}
-            swatches={paletteSwatches(palette)}
-            computedBoxModel={computedBoxModel}
-            onChange={updateSelectedElement}
-          />
-        </Stack>
-      )}
+          {selected.kind === "certification" && (
+            <CollectionInspector
+              type="certification"
+              item={(section.content.items as CertificationItem[]).find(
+                (item) => item.id === selected.itemId,
+              )}
+              onAdd={() => store.addCollectionItem(section.id)}
+              onDelete={() =>
+                store.deleteCollectionItem(section.id, selected.itemId)
+              }
+              onChange={(value) =>
+                store.updateCollectionItem(section.id, selected.itemId, value)
+              }
+            />
+          )}
 
-      {selected.kind === "certification" && (
-        <Stack gap={0}>
-          <CollectionInspector
-            type="certification"
-            item={(section.content.items as CertificationItem[]).find(
-              (item) => item.id === selected.itemId,
-            )}
-            onAdd={() => store.addCollectionItem(section.id)}
-            onDelete={() =>
-              store.deleteCollectionItem(section.id, selected.itemId)
-            }
-            onChange={(value) =>
-              store.updateCollectionItem(section.id, selected.itemId, value)
-            }
-          />
-          <ElementStyleControls
-            selected={selected}
-            settings={elementSettings || {}}
-            fallbackColor={section.settings.textColor || palette.text}
-            swatches={paletteSwatches(palette)}
-            computedBoxModel={computedBoxModel}
-            onChange={updateSelectedElement}
-          />
-        </Stack>
-      )}
+          {selected.kind === "service" && (
+            <CollectionInspector
+              type="service"
+              item={(section.content.items as ServiceItem[]).find(
+                (item) => item.id === selected.itemId,
+              )}
+              onAdd={() => store.addCollectionItem(section.id)}
+              onDelete={() =>
+                store.deleteCollectionItem(section.id, selected.itemId)
+              }
+              onChange={(value) =>
+                store.updateCollectionItem(section.id, selected.itemId, value)
+              }
+            />
+          )}
+        </Tabs.Content>
 
-      {selected.kind === "service" && (
-        <div className="inspector-stack">
-          <CollectionInspector
-            type="service"
-            item={(section.content.items as ServiceItem[]).find(
-              (item) => item.id === selected.itemId,
-            )}
-            onAdd={() => store.addCollectionItem(section.id)}
-            onDelete={() =>
-              store.deleteCollectionItem(section.id, selected.itemId)
-            }
-            onChange={(value) =>
-              store.updateCollectionItem(section.id, selected.itemId, value)
-            }
-          />
-          <ElementStyleControls
-            selected={selected}
-            settings={elementSettings || {}}
-            fallbackColor={section.settings.textColor || palette.text}
-            swatches={paletteSwatches(palette)}
-            computedBoxModel={computedBoxModel}
-            onChange={updateSelectedElement}
-          />
-        </div>
-      )}
+        <Tabs.Content value="styling" p={0}>
+          <Tabs.Root defaultValue="structure" variant="line">
+            <Tabs.List>
+              <Tabs.Trigger flex={1} value="structure">
+                Structure
+              </Tabs.Trigger>
+              <Tabs.Trigger flex={1} value="box-model">
+                Box Model
+              </Tabs.Trigger>
+            </Tabs.List>
+            <Tabs.Content value="structure" p={0}>
+              <LayoutStructurePreview layout={displayedLayoutStructure} />
+            </Tabs.Content>
+            <Tabs.Content value="box-model" p={0}>
+              <BoxModelPreview
+                margin={sectionMargin}
+                padding={sectionPadding}
+                borderWidth={
+                  section.settings.borderWidth ?? computedBoxModel?.borderWidth
+                }
+              />
+            </Tabs.Content>
+          </Tabs.Root>
+
+          {selected.kind === "section" && (
+            <Stack gap={0}>
+              <PropertyGroup title="Layout" defaultOpen>
+                <SectionLayoutControls
+                  section={section}
+                  onChange={(updates) =>
+                    store.updateSection(section.id, {
+                      settings: { ...section.settings, ...updates },
+                    })
+                  }
+                />
+                <Field.Root>
+                  <Field.Label>Text alignment</Field.Label>
+                  <NativeSelect.Root>
+                    <NativeSelect.Field
+                      value={section.settings.alignment || "left"}
+                      onChange={(event) =>
+                        store.updateSection(section.id, {
+                          settings: {
+                            ...section.settings,
+                            alignment: event.currentTarget.value as never,
+                          },
+                        })
+                      }
+                    >
+                      <option value="left">Left</option>
+                      <option value="center">Center</option>
+                      <option value="right">Right</option>
+                    </NativeSelect.Field>
+                    <NativeSelect.Indicator />
+                  </NativeSelect.Root>
+                </Field.Root>
+                <Field.Root>
+                  <Field.Label>Section Spacing</Field.Label>
+                  <NativeSelect.Root>
+                    <NativeSelect.Field
+                      value={section.settings.spacing || "medium"}
+                      onChange={(event) =>
+                        store.updateSection(section.id, {
+                          settings: {
+                            ...section.settings,
+                            spacing: event.target.value as never,
+                          },
+                        })
+                      }
+                    >
+                      <option value="small">Small</option>
+                      <option value="medium">Medium</option>
+                      <option value="large">Large</option>
+                    </NativeSelect.Field>
+                    <NativeSelect.Indicator />
+                  </NativeSelect.Root>
+                </Field.Root>
+                <Field.Root>
+                  <Field.Label>Content Width</Field.Label>
+                  <NativeSelect.Root>
+                    <NativeSelect.Field
+                      value={section.settings.contentWidth || "standard"}
+                      onChange={(event) =>
+                        store.updateSection(section.id, {
+                          settings: {
+                            ...section.settings,
+                            contentWidth: event.target.value as never,
+                          },
+                        })
+                      }
+                    >
+                      <option value="narrow">Narrow</option>
+                      <option value="standard">Standard</option>
+                      <option value="wide">Wide</option>
+                    </NativeSelect.Field>
+                    <NativeSelect.Indicator />
+                  </NativeSelect.Root>
+                </Field.Root>
+              </PropertyGroup>
+              <PropertyGroup title="Color">
+                <ColorInput
+                  label="Background color"
+                  value={section.settings.backgroundColor || ""}
+                  fallback={palette.background}
+                  swatches={paletteSwatches(palette)}
+                  onChange={(value) =>
+                    store.updateSection(section.id, {
+                      settings: { ...section.settings, backgroundColor: value },
+                    })
+                  }
+                />
+                <ColorInput
+                  label="Text color"
+                  value={section.settings.textColor || ""}
+                  fallback={palette.text}
+                  swatches={paletteSwatches(palette)}
+                  onChange={(value) =>
+                    store.updateSection(section.id, {
+                      settings: { ...section.settings, textColor: value },
+                    })
+                  }
+                />
+              </PropertyGroup>
+              <PropertyGroup title="Spacing">
+                <BoxSpacingInput
+                  label="Margin"
+                  value={sectionMargin}
+                  onChange={(margin) =>
+                    store.updateSection(section.id, {
+                      settings: { ...section.settings, margin },
+                    })
+                  }
+                />
+                <BoxSpacingInput
+                  label="Padding"
+                  value={sectionPadding}
+                  onChange={(padding) =>
+                    store.updateSection(section.id, {
+                      settings: { ...section.settings, padding },
+                    })
+                  }
+                />
+              </PropertyGroup>
+              <PropertyGroup title="Border">
+                <ColorInput
+                  label="Border Color"
+                  value={section.settings.borderColor || ""}
+                  fallback={palette.border}
+                  swatches={paletteSwatches(palette)}
+                  onChange={(value) =>
+                    store.updateSection(section.id, {
+                      settings: { ...section.settings, borderColor: value },
+                    })
+                  }
+                />
+                <NumberInput
+                  label="Border Width"
+                  value={section.settings.borderWidth}
+                  onChange={(borderWidth) =>
+                    store.updateSection(section.id, {
+                      settings: { ...section.settings, borderWidth },
+                    })
+                  }
+                />
+                <Field.Root>
+                  <Field.Label>Border Style</Field.Label>
+                  <NativeSelect.Root>
+                    <NativeSelect.Field
+                      value={section.settings.borderStyle || "none"}
+                      onChange={(event) =>
+                        store.updateSection(section.id, {
+                          settings: {
+                            ...section.settings,
+                            borderStyle: event.target.value as never,
+                          },
+                        })
+                      }
+                    >
+                      <option value="none">None</option>
+                      <option value="solid">Solid</option>
+                      <option value="dashed">Dashed</option>
+                      <option value="dotted">Dotted</option>
+                    </NativeSelect.Field>
+                    <NativeSelect.Indicator />
+                  </NativeSelect.Root>
+                </Field.Root>
+                <NumberInput
+                  label="Border radius"
+                  value={section.settings.borderRadius}
+                  onChange={(borderRadius) =>
+                    store.updateSection(section.id, {
+                      settings: { ...section.settings, borderRadius },
+                    })
+                  }
+                />
+              </PropertyGroup>
+            </Stack>
+          )}
+
+          {selected.kind === "text" && (
+            <Stack gap={0}>
+              <ElementStyleControls
+                selected={selected}
+                settings={elementSettings || {}}
+                fallbackColor={section.settings.textColor || palette.text}
+                swatches={paletteSwatches(palette)}
+                computedBoxModel={computedBoxModel}
+                defaultFontFamily={templateFontFamily}
+                includeText
+                onChange={updateSelectedElement}
+              />
+            </Stack>
+          )}
+
+          {selected.kind === "layer" && (
+            <Stack gap={0}>
+              {selectedIsContainer && (
+                <PropertyGroup title="Layout" defaultOpen>
+                  <ElementLayoutControls
+                    settings={elementSettings || {}}
+                    onChange={updateSelectedElement}
+                  />
+                </PropertyGroup>
+              )}
+              <ElementStyleControls
+                selected={selected}
+                settings={elementSettings || {}}
+                fallbackColor={section.settings.textColor || palette.text}
+                swatches={paletteSwatches(palette)}
+                computedBoxModel={computedBoxModel}
+                defaultFontFamily={templateFontFamily}
+                includeSize={!getNestedImageTarget(selected)}
+                includeText={
+                  selectedCustomLayer?.type === "text" ||
+                  (section.type === "header" &&
+                    (selected.layerId === "navigation" ||
+                      selected.layerId.startsWith("navigation-link:")))
+                }
+                onChange={updateSelectedElement}
+              />
+            </Stack>
+          )}
+
+          {selected.kind === "image" && (
+            <Stack gap={0}>
+              <ElementStyleControls
+                selected={selected}
+                settings={elementSettings || {}}
+                fallbackColor={section.settings.textColor || palette.text}
+                swatches={paletteSwatches(palette)}
+                computedBoxModel={computedBoxModel}
+                includeSize={false}
+                onChange={updateSelectedElement}
+              />
+            </Stack>
+          )}
+
+          {selected.kind === "project" && (
+            <Stack gap={0}>
+              <ElementStyleControls
+                selected={selected}
+                settings={elementSettings || {}}
+                fallbackColor={section.settings.textColor || palette.text}
+                swatches={paletteSwatches(palette)}
+                computedBoxModel={computedBoxModel}
+                onChange={updateSelectedElement}
+              />
+            </Stack>
+          )}
+
+          {selected.kind === "certification" && (
+            <Stack gap={0}>
+              <ElementStyleControls
+                selected={selected}
+                settings={elementSettings || {}}
+                fallbackColor={section.settings.textColor || palette.text}
+                swatches={paletteSwatches(palette)}
+                computedBoxModel={computedBoxModel}
+                onChange={updateSelectedElement}
+              />
+            </Stack>
+          )}
+
+          {selected.kind === "service" && (
+            <div className="inspector-stack">
+              <ElementStyleControls
+                selected={selected}
+                settings={elementSettings || {}}
+                fallbackColor={section.settings.textColor || palette.text}
+                swatches={paletteSwatches(palette)}
+                computedBoxModel={computedBoxModel}
+                onChange={updateSelectedElement}
+              />
+            </div>
+          )}
+        </Tabs.Content>
+      </Tabs.Root>
     </Stack>
   );
 }
 
-function TextInput({
-  label,
-  value,
-  limit,
+function ResponsiveNavigationControls({
+  section,
   onChange,
 }: {
-  label: string;
-  value: string;
-  limit?: number;
-  onChange: (value: string) => void;
+  section: PortfolioSection;
+  onChange: (field: string, value: string) => void;
 }) {
   return (
-    <label className="field">
-      <span>{label}</span>
-      <input
-        value={value}
-        maxLength={limit}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      {limit && <small>{limit - value.length} characters remaining</small>}
-    </label>
+    <PropertyGroup title="Responsive navigation" defaultOpen>
+      <Text color="fg.muted" fontSize="xs">
+        Desktop always uses text links.
+      </Text>
+      <Field.Root>
+        <Field.Label>Tablet navigation</Field.Label>
+        <NativeSelect.Root>
+          <NativeSelect.Field
+            value={
+              section.content.tabletNavigationMode === "menu" ? "menu" : "text"
+            }
+            onChange={(event) =>
+              onChange("tabletNavigationMode", event.target.value)
+            }
+          >
+            <option value="text">Text links</option>
+            <option value="menu">Burger + dropdown</option>
+          </NativeSelect.Field>
+          <NativeSelect.Indicator />
+        </NativeSelect.Root>
+      </Field.Root>
+      <Field.Root>
+        <Field.Label>Mobile navigation</Field.Label>
+        <NativeSelect.Root>
+          <NativeSelect.Field
+            value={
+              section.content.mobileNavigationMode === "menu" ? "menu" : "text"
+            }
+            onChange={(event) =>
+              onChange("mobileNavigationMode", event.target.value)
+            }
+          >
+            <option value="text">Text links</option>
+            <option value="menu">Burger + dropdown</option>
+          </NativeSelect.Field>
+          <NativeSelect.Indicator />
+        </NativeSelect.Root>
+      </Field.Root>
+    </PropertyGroup>
   );
 }
 
@@ -583,127 +855,35 @@ function PropertyGroup({
 
   return (
     <Stack
-      p={4}
+      px={4}
+      pt={2}
+      pb={isOpen ? 4 : 2}
       gap={isOpen ? 4 : 0}
       asChild
       borderBottom="1px solid"
       borderBottomColor="border"
     >
       <details
+        {...{ name: "properties-panel-group" }}
         open={isOpen}
         onToggle={(event) => {
           setIsOpen(event.currentTarget.open);
         }}
       >
         <Text
+          fontWeight="semibold"
           color="fg"
-          fontSize="16px"
           className="properties-panel-summary"
           as="summary"
         >
           {isOpen ? <LuChevronDown size={16} /> : <LuChevronRight size={16} />}
           {title}
         </Text>
-        <Stack gap={4}>{children}</Stack>
+        <Stack px={2} gap={4}>
+          {children}
+        </Stack>
       </details>
     </Stack>
-  );
-}
-
-function TextArea({
-  label,
-  value,
-  limit,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  limit: number;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <textarea
-        value={value}
-        maxLength={limit}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      <small>{limit - value.length} characters remaining</small>
-    </label>
-  );
-}
-
-function ColorInput({
-  label,
-  value,
-  fallback = "#111827",
-  swatches = [],
-  onChange,
-}: {
-  label: string;
-  value: string;
-  fallback?: string;
-  swatches?: string[];
-  onChange: (value: string) => void;
-}) {
-  const current = normalizeColor(value || fallback);
-  return (
-    <div className="field color-picker-field">
-      <div className="color-field">
-        <span>{label}</span>
-        <input
-          type="color"
-          value={current}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      </div>
-      {swatches.length > 0 && (
-        <div className="color-swatches">
-          {swatches.map((color) => {
-            const normalized = normalizeColor(color);
-            return (
-              <button
-                key={`${label}-${color}`}
-                type="button"
-                className={normalized === current ? "selected" : ""}
-                title={color}
-                style={{ background: color }}
-                onClick={() => onChange(normalized)}
-              />
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function NumberInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value?: number;
-  onChange: (value: number | undefined) => void;
-}) {
-  return (
-    <label className="field">
-      <span>{label}</span>
-      <input
-        type="number"
-        min="0"
-        max="240"
-        value={value ?? ""}
-        placeholder="Template default"
-        onChange={(event) =>
-          onChange(
-            event.target.value === "" ? undefined : Number(event.target.value),
-          )
-        }
-      />
-    </label>
   );
 }
 
@@ -713,6 +893,8 @@ function ElementStyleControls({
   fallbackColor,
   swatches,
   computedBoxModel,
+  defaultFontFamily = "Inter, ui-sans-serif, system-ui, sans-serif",
+  includeSize = true,
   includeText = false,
   onChange,
 }: {
@@ -721,6 +903,8 @@ function ElementStyleControls({
   fallbackColor: string;
   swatches: string[];
   computedBoxModel?: ComputedBoxModel;
+  defaultFontFamily?: string;
+  includeSize?: boolean;
   includeText?: boolean;
   onChange: (updates: Partial<ElementSettings>) => void;
 }) {
@@ -732,49 +916,41 @@ function ElementStyleControls({
 
   return (
     <Stack gap={0}>
-      <strong>
-        {selected.kind === "layer" ? selected.label : "Element settings"}
-      </strong>
       {includeText && (
         <PropertyGroup title="Typography" defaultOpen>
-          <label className="field">
-            <span>Font family</span>
-            <select
-              value={settings.fontFamily || ""}
-              onChange={(event) =>
-                onChange({ fontFamily: event.target.value || undefined })
-              }
-            >
-              <option value="">Template default</option>
-              <option value="Inter, ui-sans-serif, system-ui, sans-serif">
-                Inter
-              </option>
-              <option value="Roboto, Arial, sans-serif">Roboto</option>
-              <option value="Georgia, serif">Georgia</option>
-              <option value="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">
-                Mono
-              </option>
-            </select>
-          </label>
-          <NumberInput
+          <FontFamilyPicker
+            value={settings.fontFamily}
+            defaultFontFamily={defaultFontFamily}
+            onChange={(fontFamily) => onChange({ fontFamily })}
+          />
+          <TypographyUnitInput
             label="Font size"
             value={settings.fontSize}
-            onChange={(fontSize) => onChange({ fontSize })}
+            unit={settings.fontSizeUnit || "px"}
+            onChange={(fontSize, fontSizeUnit) =>
+              onChange({ fontSize, fontSizeUnit })
+            }
           />
           <NumberInput
             label="Font weight"
             value={settings.fontWeight}
             onChange={(fontWeight) => onChange({ fontWeight })}
           />
-          <NumberInput
+          <TypographyUnitInput
             label="Line height"
             value={settings.lineHeight}
-            onChange={(lineHeight) => onChange({ lineHeight })}
+            unit={settings.lineHeightUnit || "px"}
+            onChange={(lineHeight, lineHeightUnit) =>
+              onChange({ lineHeight, lineHeightUnit })
+            }
           />
-          <NumberInput
+          <TypographyUnitInput
             label="Letter spacing"
             value={settings.letterSpacing}
-            onChange={(letterSpacing) => onChange({ letterSpacing })}
+            unit={settings.letterSpacingUnit || "px"}
+            onChange={(letterSpacing, letterSpacingUnit) =>
+              onChange({ letterSpacing, letterSpacingUnit })
+            }
           />
           <label className="field">
             <span>Text alignment</span>
@@ -811,28 +987,30 @@ function ElementStyleControls({
           onChange={(backgroundColor) => onChange({ backgroundColor })}
         />
       </PropertyGroup>
-      <PropertyGroup title="Size">
-        <SizeInput
-          label="Width"
-          value={settings.width}
-          onChange={(width) => onChange({ width })}
-        />
-        <SizeInput
-          label="Height"
-          value={settings.height}
-          onChange={(height) => onChange({ height })}
-        />
-        <label className="toggle-line">
-          <input
-            type="checkbox"
-            checked={!!settings.spanSection}
-            onChange={(event) =>
-              onChange({ spanSection: event.target.checked })
-            }
+      {includeSize && (
+        <PropertyGroup title="Size">
+          <SizeInput
+            label="Width"
+            value={settings.width}
+            onChange={(width) => onChange({ width })}
           />
-          Span section width
-        </label>
-      </PropertyGroup>
+          <SizeInput
+            label="Height"
+            value={settings.height}
+            onChange={(height) => onChange({ height })}
+          />
+          <label className="toggle-line">
+            <input
+              type="checkbox"
+              checked={!!settings.spanSection}
+              onChange={(event) =>
+                onChange({ spanSection: event.target.checked })
+              }
+            />
+            Span section width
+          </label>
+        </PropertyGroup>
+      )}
       <PropertyGroup title="Spacing">
         <BoxSpacingInput
           label="Margin"
@@ -858,23 +1036,26 @@ function ElementStyleControls({
           value={settings.borderWidth}
           onChange={(borderWidth) => onChange({ borderWidth })}
         />
-        <label className="field">
-          <span>Border style</span>
-          <select
-            value={settings.borderStyle || "none"}
-            onChange={(event) =>
-              onChange({
-                borderStyle: event.target
-                  .value as ElementSettings["borderStyle"],
-              })
-            }
-          >
-            <option value="none">None</option>
-            <option value="solid">Solid</option>
-            <option value="dashed">Dashed</option>
-            <option value="dotted">Dotted</option>
-          </select>
-        </label>
+        <Field.Root>
+          <Field.Label>Border Style</Field.Label>
+          <NativeSelect.Root>
+            <NativeSelect.Field
+              value={settings.borderStyle || "none"}
+              onChange={(event) =>
+                onChange({
+                  borderStyle: event.target
+                    .value as ElementSettings["borderStyle"],
+                })
+              }
+            >
+              <option value="none">None</option>
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+              <option value="dotted">Dotted</option>
+            </NativeSelect.Field>
+            <NativeSelect.Indicator />
+          </NativeSelect.Root>
+        </Field.Root>
         <NumberInput
           label="Border radius"
           value={settings.borderRadius}
@@ -886,105 +1067,6 @@ function ElementStyleControls({
         />
       </PropertyGroup>
     </Stack>
-  );
-}
-
-function BoxShadowInput({
-  value,
-  onChange,
-}: {
-  value?: string;
-  onChange: (value: string | undefined) => void;
-}) {
-  const presets = [
-    { label: "None", value: "" },
-    { label: "Small", value: "0 2px 8px rgba(15, 23, 42, 0.12)" },
-    { label: "Medium", value: "0 12px 30px rgba(15, 23, 42, 0.16)" },
-    { label: "Large", value: "0 24px 60px rgba(15, 23, 42, 0.22)" },
-    { label: "Hard offset", value: "6px 6px 0 rgba(15, 23, 42, 0.95)" },
-    { label: "Glow", value: "0 0 0 4px rgba(37, 99, 255, 0.18)" },
-    { label: "Custom", value: "__custom__" },
-  ];
-  const presetValue = presets.some((preset) => preset.value === (value || ""))
-    ? value || ""
-    : "__custom__";
-
-  return (
-    <>
-      <label className="field">
-        <span>Box shadow</span>
-        <select
-          value={presetValue}
-          onChange={(event) => {
-            if (event.target.value === "__custom__") return;
-            onChange(event.target.value || undefined);
-          }}
-        >
-          {presets.map((preset) => (
-            <option key={preset.label} value={preset.value}>
-              {preset.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span>Custom shadow</span>
-        <input
-          value={value || ""}
-          placeholder="0 12px 30px rgba(15, 23, 42, 0.16)"
-          onChange={(event) => onChange(event.target.value || undefined)}
-        />
-      </label>
-    </>
-  );
-}
-
-function SizeInput({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value?: SizeValue;
-  onChange: (value: SizeValue | undefined) => void;
-}) {
-  const unit = value?.unit || "px";
-  return (
-    <label className="field size-field">
-      <span>{label}</span>
-      <div>
-        <input
-          type="number"
-          min="0"
-          max={unit === "%" ? "100" : "2000"}
-          value={value?.value ?? ""}
-          placeholder="Auto"
-          onChange={(event) =>
-            onChange(
-              event.target.value === ""
-                ? undefined
-                : { value: Number(event.target.value), unit },
-            )
-          }
-        />
-        <select
-          value={unit}
-          onChange={(event) => {
-            if (value?.value === undefined) {
-              onChange({ unit: event.target.value as SizeValue["unit"] });
-              return;
-            }
-            onChange({
-              value: value.value,
-              unit: event.target.value as SizeValue["unit"],
-            });
-          }}
-        >
-          <option value="px">px</option>
-          <option value="%">%</option>
-        </select>
-      </div>
-    </label>
   );
 }
 
@@ -1004,15 +1086,22 @@ function ImageInspector({
   const upload = async (file?: File) => {
     if (!file) return;
     try {
-      onChange(
-        await uploadImageToSupabase({
-          file,
-          projectId,
-          slot,
-          alt: image?.alt || label,
-          label: `Uploading ${label}`,
-        }),
-      );
+      const uploadedImage = await uploadImageToSupabase({
+        file,
+        projectId,
+        slot,
+        alt: image?.alt || label,
+        label: `Uploading ${label}`,
+      });
+      onChange({
+        ...uploadedImage,
+        objectFit: image?.objectFit || uploadedImage.objectFit,
+        objectPosition: image?.objectPosition || uploadedImage.objectPosition,
+        shape: image?.shape,
+        width: image?.width,
+        height: image?.height,
+        aspectRatio: image?.aspectRatio,
+      });
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError"))
         console.error(error);
@@ -1020,7 +1109,7 @@ function ImageInspector({
   };
 
   return (
-    <Stack gap={0}>
+    <Stack gap={4}>
       <label className="upload-slot compact">
         <LuImagePlus />
         <span>{image ? "Replace image" : "Upload image"}</span>
@@ -1031,52 +1120,113 @@ function ImageInspector({
         />
       </label>
       {image?.url && (
-        <img className="inspector-image" src={image.url} alt={image.alt} />
+        <Box style={toImageFrameStyle(image)} maxW="full">
+          <img
+            className="inspector-image"
+            style={toImageContentStyle(image)}
+            src={image.url}
+            alt={image.alt}
+          />
+        </Box>
       )}
       <TextInput
         label="Alt text"
+        limit={125}
         value={image?.alt || ""}
         onChange={(alt) => onChange(image ? { ...image, alt } : undefined)}
       />
-      <label className="field">
-        <span>Object fit</span>
-        <select
-          value={image?.objectFit || "cover"}
-          onChange={(event) =>
-            image &&
-            onChange({ ...image, objectFit: event.target.value as never })
-          }
-        >
-          <option>cover</option>
-          <option>contain</option>
-        </select>
-      </label>
-      <label className="field">
-        <span>Crop position</span>
-        <input
-          value={image?.objectPosition || "center"}
-          onChange={(event) =>
-            image && onChange({ ...image, objectPosition: event.target.value })
-          }
-        />
-      </label>
-      <label className="field">
-        <span>Image shape</span>
-        <select
-          value={image?.shape || "rounded"}
-          onChange={(event) =>
-            image && onChange({ ...image, shape: event.target.value as never })
-          }
-        >
-          <option>square</option>
-          <option>rounded</option>
-          <option>circle</option>
-          <option>arch</option>
-        </select>
-      </label>
-      <button className="danger" onClick={() => onChange(undefined)}>
-        <LuTrash2 /> Remove image
-      </button>
+      {image && (
+        <>
+          <SizeInput
+            label="Image width"
+            value={image.width}
+            onChange={(width) => onChange({ ...image, width })}
+          />
+          <SizeInput
+            label="Image height"
+            value={image.height}
+            onChange={(height) => onChange({ ...image, height })}
+          />
+          <Field.Root>
+            <Field.Label>Aspect Ratio</Field.Label>
+            <NativeSelect.Root size="xs">
+              <NativeSelect.Field
+                value={image.aspectRatio || defaultImageSettings.aspectRatio}
+                onChange={(event) =>
+                  onChange({
+                    ...image,
+                    aspectRatio: event.target.value as NonNullable<
+                      ImageAsset["aspectRatio"]
+                    >,
+                  })
+                }
+              >
+                {imageAspectRatioOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </NativeSelect.Field>
+              <NativeSelect.Indicator />
+            </NativeSelect.Root>
+          </Field.Root>
+
+          <Field.Root>
+            <Field.Label>Crop Position</Field.Label>
+            <NativeSelect.Root size="xs">
+              <NativeSelect.Field
+                value={
+                  image.objectPosition || defaultImageSettings.objectPosition
+                }
+                onChange={(event) =>
+                  onChange({ ...image, objectPosition: event.target.value })
+                }
+              >
+                {imageCropPositionOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </NativeSelect.Field>
+              <NativeSelect.Indicator />
+            </NativeSelect.Root>
+          </Field.Root>
+          <Field.Root>
+            <Field.Label>Crop Position</Field.Label>
+            <NativeSelect.Root size="xs">
+              <NativeSelect.Field
+                value={image.shape || defaultImageSettings.shape}
+                onChange={(event) => {
+                  const shape = event.target.value as NonNullable<
+                    ImageAsset["shape"]
+                  >;
+                  onChange({
+                    ...image,
+                    shape,
+                    aspectRatio:
+                      shape === "circle" ? "1 / 1" : image.aspectRatio,
+                  });
+                }}
+              >
+                {imageShapeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </NativeSelect.Field>
+              <NativeSelect.Indicator />
+            </NativeSelect.Root>
+          </Field.Root>
+        </>
+      )}
+      <Button
+        variant="outline"
+        size="lg"
+        colorPalette="red"
+        onClick={() => onChange(undefined)}
+      >
+        <LuTrash2 /> Remove Image
+      </Button>
     </Stack>
   );
 }
@@ -1147,7 +1297,7 @@ function CollectionInspector({
             limit={limits.projectTitle}
             onChange={(title) => onChange({ title })}
           />
-          <TextArea
+          <TextAreaInput
             label="Project description"
             value={item.description}
             limit={limits.projectDescription}
@@ -1238,7 +1388,7 @@ function CollectionInspector({
             limit={limits.serviceTitle}
             onChange={(title) => onChange({ title })}
           />
-          <TextArea
+          <TextAreaInput
             label="Service description"
             value={item.description}
             limit={limits.serviceDescription}
@@ -1343,15 +1493,6 @@ function paletteSwatches(palette: ColorPalette) {
   );
 }
 
-function normalizeColor(color: string) {
-  if (/^#[0-9a-f]{6}$/i.test(color)) return color.toLowerCase();
-  if (/^#[0-9a-f]{3}$/i.test(color)) {
-    const [, r, g, b] = color.toLowerCase();
-    return `#${r}${r}${g}${g}${b}${b}`;
-  }
-  return "#111827";
-}
-
 function legacySectionMargin(settings: SectionSettings): BoxSpacing {
   return {
     top: settings.margin?.top ?? settings.marginTop,
@@ -1367,5 +1508,41 @@ function legacySectionPadding(settings: SectionSettings): BoxSpacing {
     right: settings.padding?.right ?? settings.paddingInline,
     bottom: settings.padding?.bottom ?? settings.paddingBottom,
     left: settings.padding?.left ?? settings.paddingInline,
+  };
+}
+
+function configuredSectionLayout(
+  section: PortfolioSection,
+  computed?: ComputedLayoutStructure,
+): ComputedLayoutStructure {
+  const layout = resolveSectionLayoutSettings(section);
+  const isGrid = layout.layoutMode === "grid";
+  const stackGap = `${layout.stackGap || 0}px`;
+  const rowGap = `${layout.gridGapY || 0}px`;
+  const columnGap = `${layout.gridGapX || 0}px`;
+
+  return {
+    type: isGrid ? "grid" : "flex",
+    direction: layout.stackDirection || "column",
+    columns: isGrid ? layout.gridColumns || 1 : 1,
+    rows: computed?.rows || 1,
+    gap: isGrid ? `${rowGap} ${columnGap}` : stackGap,
+    rowGap: isGrid ? rowGap : stackGap,
+    columnGap: isGrid ? columnGap : stackGap,
+    wrap: isGrid
+      ? layout.layoutWrap
+        ? "rows"
+        : "nowrap"
+      : layout.layoutWrap
+        ? "wrap"
+        : "nowrap",
+    alignItems: isGrid
+      ? computed?.alignItems || "stretch"
+      : layout.stackAlign || "stretch",
+    justifyContent: isGrid
+      ? computed?.justifyContent || "normal"
+      : layout.stackJustify || "flex-start",
+    childCount: computed?.childCount || 0,
+    childTags: computed?.childTags || [],
   };
 }

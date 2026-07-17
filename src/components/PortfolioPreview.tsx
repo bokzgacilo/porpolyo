@@ -1,15 +1,22 @@
-import { Mail, MapPin } from "lucide-react";
+import { Mail, MapPin, Menu } from "lucide-react";
 import React from "react";
+import {
+  toImageContentStyle,
+  toImageFrameStyle,
+} from "../config/imageSettings";
 import { palettes } from "../data/templates";
 import { useEditorStore } from "../store/editorStore";
 import {
   CertificationItem,
+  CustomLayer,
+  ImageAsset,
   Portfolio,
   ProjectItem,
   SelectedElement,
   ServiceItem,
 } from "../types/portfolio";
 import { getElementSettings, toElementStyle } from "../utils/elementSettings";
+import { resolveSectionLayoutSettings } from "../config/sectionLayoutSettings";
 
 interface Props {
   portfolio: Portfolio;
@@ -116,6 +123,9 @@ function sectionStyle(section: Portfolio["sections"][number]) {
     standard: "1000px",
     wide: "1220px",
   };
+  const layout = section.settings.layoutMode
+    ? resolveSectionLayoutSettings(section)
+    : undefined;
   const style: React.CSSProperties & Record<string, string | undefined> = {
     "--section-content-width":
       contentWidths[section.settings.contentWidth || "standard"],
@@ -176,6 +186,48 @@ function sectionStyle(section: Portfolio["sections"][number]) {
       section.settings.borderRadius !== undefined
         ? `${section.settings.borderRadius}px`
         : undefined,
+    display:
+      layout?.layoutMode === "grid"
+        ? "grid"
+        : layout?.layoutMode === "stack"
+          ? "flex"
+          : undefined,
+    gridTemplateColumns:
+      layout?.layoutMode === "grid"
+        ? `repeat(${layout.gridColumns || 1}, minmax(0, 1fr))`
+        : undefined,
+    gridAutoFlow:
+      layout?.layoutMode === "grid"
+        ? layout.layoutWrap
+          ? "row"
+          : "column"
+        : undefined,
+    gridAutoColumns:
+      layout?.layoutMode === "grid" && !layout.layoutWrap
+        ? "minmax(0, 1fr)"
+        : undefined,
+    columnGap:
+      layout?.layoutMode === "grid"
+        ? `${layout.gridGapX || 0}px`
+        : undefined,
+    rowGap:
+      layout?.layoutMode === "grid"
+        ? `${layout.gridGapY || 0}px`
+        : undefined,
+    flexDirection:
+      layout?.layoutMode === "stack" ? layout.stackDirection : undefined,
+    alignItems:
+      layout?.layoutMode === "stack" ? layout.stackAlign : undefined,
+    justifyContent:
+      layout?.layoutMode === "stack" ? layout.stackJustify : undefined,
+    gap:
+      layout?.layoutMode === "stack" ? `${layout.stackGap || 0}px` : undefined,
+    flexWrap:
+      layout?.layoutMode === "stack"
+        ? layout.layoutWrap
+          ? "wrap"
+          : "nowrap"
+        : undefined,
   };
   if (section.settings.textColor) {
     style["--text"] = section.settings.textColor;
@@ -190,6 +242,7 @@ function sectionStyle(section: Portfolio["sections"][number]) {
 function HeaderSection({
   portfolio,
   section,
+  selected,
   onSelect,
   isSelected,
   editable,
@@ -197,10 +250,14 @@ function HeaderSection({
   const visibleSections = portfolio.sections.filter(
     (item) => item.visible && !["header", "footer"].includes(item.type),
   );
+  const tabletNavigationMode =
+    section.content.tabletNavigationMode === "menu" ? "menu" : "text";
+  const mobileNavigationMode =
+    section.content.mobileNavigationMode === "menu" ? "menu" : "text";
   return (
     <header
       {...selectable(section, isSelected, onSelect, editable)}
-      className={`portfolio-header selectable ${isSelected ? "selected" : ""}`}
+      className={`portfolio-header navigation-tablet-${tabletNavigationMode} navigation-mobile-${mobileNavigationMode} selectable ${isSelected ? "selected" : ""}`}
     >
       <button
         {...editorTarget(section.id, "text:logoText")}
@@ -220,16 +277,87 @@ function HeaderSection({
       >
         {String(section.content.logoText || portfolio.owner.fullName)}
       </button>
-      <nav
+      <div
         {...editorTarget(section.id, "layer:navigation")}
+        className="portfolio-navigation"
         style={toElementStyle(getElementSettings(section, "layer:navigation"))}
       >
-        {visibleSections.map((item) => (
-          <a key={item.id} href={`#${item.type}`}>
-            {item.label}
-          </a>
-        ))}
-      </nav>
+        <nav className="portfolio-nav-links" aria-label="Primary navigation">
+          {visibleSections.map((item) => (
+            <a
+              key={item.id}
+              {...editorTarget(
+                section.id,
+                `layer:navigation-link:${item.id}`,
+              )}
+              href={`#${item.type}`}
+              style={toElementStyle(
+                getElementSettings(
+                  section,
+                  `layer:navigation-link:${item.id}`,
+                ),
+              )}
+              onClick={(event) => {
+                if (!editable) return;
+                event.preventDefault();
+                event.stopPropagation();
+                onSelect({
+                  kind: "layer",
+                  sectionId: section.id,
+                  layerId: `navigation-link:${item.id}`,
+                  label: `${item.label} Navigation Link`,
+                });
+              }}
+            >
+              {item.label}
+            </a>
+          ))}
+        </nav>
+        <details className="portfolio-nav-menu">
+          <summary>
+            <Menu size={18} aria-hidden="true" />
+            <span>Menu</span>
+          </summary>
+          <nav aria-label="Compact navigation">
+            {visibleSections.map((item) => (
+              <a
+                key={item.id}
+                {...editorTarget(
+                  section.id,
+                  `layer:navigation-link:${item.id}`,
+                )}
+                href={`#${item.type}`}
+                style={toElementStyle(
+                  getElementSettings(
+                    section,
+                    `layer:navigation-link:${item.id}`,
+                  ),
+                )}
+                onClick={(event) => {
+                  if (!editable) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onSelect({
+                    kind: "layer",
+                    sectionId: section.id,
+                    layerId: `navigation-link:${item.id}`,
+                    label: `${item.label} Navigation Link`,
+                  });
+                }}
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+        </details>
+        <CustomSectionLayers
+          section={section}
+          parentLayerId="navigation"
+          selected={selected}
+          onSelect={onSelect}
+          editable={editable}
+        />
+      </div>
       <a
         {...editorTarget(section.id, "text:contactButton")}
         className="portfolio-button"
@@ -252,6 +380,12 @@ function HeaderSection({
       >
         {String(section.content.contactButton || "Contact")}
       </a>
+      <CustomSectionLayers
+        section={section}
+        selected={selected}
+        onSelect={onSelect}
+        editable={editable}
+      />
     </header>
   );
 }
@@ -264,16 +398,17 @@ function HeroSection({
   isSelected,
   editable,
 }: SectionProps) {
-  const image = section.content.image as
-    | { url?: string; alt?: string }
-    | undefined;
+  const image = section.content.image as ImageAsset | undefined;
   return (
     <section
       id="hero"
       {...selectable(section, isSelected, onSelect, editable)}
       className={`portfolio-section portfolio-hero selectable ${isSelected ? "selected" : ""}`}
     >
-      <div>
+      <div
+        {...editorTarget(section.id, "layer:hero-content")}
+        style={toElementStyle(getElementSettings(section, "layer:hero-content"))}
+      >
         <EditableText
           sectionId={section.id}
           field="eyebrow"
@@ -335,11 +470,21 @@ function HeroSection({
             </a>
           ))}
         </div>
+        <CustomSectionLayers
+          section={section}
+          parentLayerId="hero-content"
+          selected={selected}
+          onSelect={onSelect}
+          editable={editable}
+        />
       </div>
       <button
         {...editorTarget(section.id, "image:image")}
         className="image-slot hero-image"
-        style={toElementStyle(getElementSettings(section, "image:image"))}
+        style={{
+          ...toElementStyle(getElementSettings(section, "image:image")),
+          ...toImageFrameStyle(image),
+        }}
         onClick={(event) => {
           event.stopPropagation();
           onSelect({
@@ -352,11 +497,21 @@ function HeroSection({
         }}
       >
         {image?.url ? (
-          <img src={image.url} alt={image.alt || ""} />
+          <img
+            src={image.url}
+            alt={image.alt || ""}
+            style={toImageContentStyle(image)}
+          />
         ) : (
           <span>Hero image slot · 4:5 or 1:1</span>
         )}
       </button>
+      <CustomSectionLayers
+        section={section}
+        selected={selected}
+        onSelect={onSelect}
+        editable={editable}
+      />
     </section>
   );
 }
@@ -408,12 +563,15 @@ function ProjectsSection({
             <div
               {...editorTarget(section.id, `layer:project:${project.id}:image`)}
               className="project-thumb"
-              style={toElementStyle(
-                getElementSettings(
-                  section,
-                  `layer:project:${project.id}:image`,
+              style={{
+                ...toElementStyle(
+                  getElementSettings(
+                    section,
+                    `layer:project:${project.id}:image`,
+                  ),
                 ),
-              )}
+                ...toImageFrameStyle(project.image),
+              }}
               onClick={(event) => {
                 event.stopPropagation();
                 onSelect({
@@ -425,7 +583,11 @@ function ProjectsSection({
               }}
             >
               {project.image?.url ? (
-                <img src={project.image.url} alt={project.image.alt} />
+                <img
+                  src={project.image.url}
+                  alt={project.image.alt}
+                  style={toImageContentStyle(project.image)}
+                />
               ) : (
                 <span>16:9 project image</span>
               )}
@@ -514,7 +676,20 @@ function ProjectsSection({
             {project.featured && <small>Featured</small>}
           </button>
         ))}
+        <CustomSectionLayers
+          section={section}
+          parentLayerId="project-grid"
+          selected={selected}
+          onSelect={onSelect}
+          editable={editable}
+        />
       </div>
+      <CustomSectionLayers
+        section={section}
+        selected={selected}
+        onSelect={onSelect}
+        editable={editable}
+      />
     </section>
   );
 }
@@ -568,12 +743,15 @@ function CertificationsSection({
                 `layer:certification:${item.id}:image`,
               )}
               className="cert-image-slot"
-              style={toElementStyle(
-                getElementSettings(
-                  section,
-                  `layer:certification:${item.id}:image`,
+              style={{
+                ...toElementStyle(
+                  getElementSettings(
+                    section,
+                    `layer:certification:${item.id}:image`,
+                  ),
                 ),
-              )}
+                ...toImageFrameStyle(item.image),
+              }}
               onClick={(event) => {
                 event.stopPropagation();
                 onSelect({
@@ -585,7 +763,11 @@ function CertificationsSection({
               }}
             >
               {item.image?.url ? (
-                <img src={item.image.url} alt={item.image.alt} />
+                <img
+                  src={item.image.url}
+                  alt={item.image.alt}
+                  style={toImageContentStyle(item.image)}
+                />
               ) : (
                 <span>Badge image</span>
               )}
@@ -598,7 +780,20 @@ function CertificationsSection({
             </small>
           </button>
         ))}
+        <CustomSectionLayers
+          section={section}
+          parentLayerId="certification-list"
+          selected={selected}
+          onSelect={onSelect}
+          editable={editable}
+        />
       </div>
+      <CustomSectionLayers
+        section={section}
+        selected={selected}
+        onSelect={onSelect}
+        editable={editable}
+      />
     </section>
   );
 }
@@ -649,9 +844,12 @@ function ServicesSection({
             <div
               {...editorTarget(section.id, `layer:service:${item.id}:icon`)}
               className="service-icon-slot"
-              style={toElementStyle(
-                getElementSettings(section, `layer:service:${item.id}:icon`),
-              )}
+              style={{
+                ...toElementStyle(
+                  getElementSettings(section, `layer:service:${item.id}:icon`),
+                ),
+                ...toImageFrameStyle(item.icon),
+              }}
               onClick={(event) => {
                 event.stopPropagation();
                 onSelect({
@@ -663,7 +861,11 @@ function ServicesSection({
               }}
             >
               {item.icon?.url ? (
-                <img src={item.icon.url} alt={item.icon.alt} />
+                <img
+                  src={item.icon.url}
+                  alt={item.icon.alt}
+                  style={toImageContentStyle(item.icon)}
+                />
               ) : (
                 <span>Icon</span>
               )}
@@ -674,7 +876,20 @@ function ServicesSection({
             <small>{item.ctaText}</small>
           </button>
         ))}
+        <CustomSectionLayers
+          section={section}
+          parentLayerId="service-cards"
+          selected={selected}
+          onSelect={onSelect}
+          editable={editable}
+        />
       </div>
+      <CustomSectionLayers
+        section={section}
+        selected={selected}
+        onSelect={onSelect}
+        editable={editable}
+      />
     </section>
   );
 }
@@ -720,11 +935,22 @@ function AboutSection({
           onSelect={onSelect}
           as="p"
         />
-        <div className="tag-row">
+        <div
+          {...editorTarget(section.id, "layer:skills")}
+          className="tag-row"
+          style={toElementStyle(getElementSettings(section, "layer:skills"))}
+        >
           {skills.map((skill) => (
             <span key={skill}>{skill}</span>
           ))}
         </div>
+        <CustomSectionLayers
+          section={section}
+          parentLayerId="about-content"
+          selected={selected}
+          onSelect={onSelect}
+          editable={editable}
+        />
       </div>
       <aside
         {...editorTarget(section.id, "layer:about-panel")}
@@ -737,7 +963,20 @@ function AboutSection({
           <Mail size={16} /> {portfolio.owner.email}
         </span>
         <strong>{String(section.content.availability || "Available")}</strong>
+        <CustomSectionLayers
+          section={section}
+          parentLayerId="about-panel"
+          selected={selected}
+          onSelect={onSelect}
+          editable={editable}
+        />
       </aside>
+      <CustomSectionLayers
+        section={section}
+        selected={selected}
+        onSelect={onSelect}
+        editable={editable}
+      />
     </section>
   );
 }
@@ -745,6 +984,7 @@ function AboutSection({
 function FooterSection({
   portfolio,
   section,
+  selected,
   onSelect,
   isSelected,
   editable,
@@ -788,7 +1028,24 @@ function FooterSection({
       >
         {String(section.content.message || "")}
       </span>
-      <a href="#top">Back to top</a>
+      <a
+        {...editorTarget(section.id, "layer:back-to-top")}
+        href="#top"
+        style={toElementStyle(getElementSettings(section, "layer:back-to-top"))}
+        onClick={(event) => {
+          if (!editable) return;
+          event.preventDefault();
+          event.stopPropagation();
+          onSelect({
+            kind: "layer",
+            sectionId: section.id,
+            layerId: "back-to-top",
+            label: "Back to Top Link",
+          });
+        }}
+      >
+        Back to top
+      </a>
       <small
         {...editorTarget(section.id, "text:copyright")}
         style={toElementStyle(getElementSettings(section, "text:copyright"))}
@@ -806,7 +1063,139 @@ function FooterSection({
       >
         {String(section.content.copyright || "")}
       </small>
+      <CustomSectionLayers
+        section={section}
+        selected={selected}
+        onSelect={onSelect}
+        editable={editable}
+      />
     </footer>
+  );
+}
+
+function CustomSectionLayers({
+  section,
+  parentLayerId,
+  selected,
+  onSelect,
+  editable,
+}: {
+  section: Portfolio["sections"][number];
+  parentLayerId?: string;
+  selected?: SelectedElement;
+  onSelect: Props["onSelect"];
+  editable?: boolean;
+}) {
+  return (
+    <>
+      {(section.customLayers || [])
+        .filter((layer) => layer.parentLayerId === parentLayerId)
+        .map((layer) => (
+        <CustomLayerView
+          key={layer.id}
+          layer={layer}
+          section={section}
+          selected={selected}
+          onSelect={onSelect}
+          editable={editable}
+        />
+        ))}
+    </>
+  );
+}
+
+function CustomLayerView({
+  layer,
+  section,
+  selected,
+  onSelect,
+  editable,
+}: {
+  layer: CustomLayer;
+  section: Portfolio["sections"][number];
+  selected?: SelectedElement;
+  onSelect: Props["onSelect"];
+  editable?: boolean;
+}) {
+  const layerId = `custom:${layer.id}`;
+  const isSelected =
+    selected?.kind === "layer" &&
+    selected.sectionId === section.id &&
+    selected.layerId === layerId;
+  const target = editorTarget(section.id, `layer:${layerId}`);
+  const selectLayer = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    if (editable) {
+      onSelect({
+        kind: "layer",
+        sectionId: section.id,
+        layerId,
+        label: layer.name,
+      });
+    }
+  };
+  const className = `custom-layer custom-layer-${layer.type} ${isSelected ? "selected" : ""}`;
+  const style = toElementStyle(getElementSettings(section, `layer:${layerId}`));
+
+  if (layer.type === "div") {
+    const isEmpty = !layer.children?.length;
+    return (
+      <div
+        {...target}
+        id={`custom-${layer.id}`}
+        className={`${className} ${isEmpty ? "empty" : ""}`}
+        style={style}
+        onClick={selectLayer}
+      >
+        {layer.children?.map((child) => (
+          <CustomLayerView
+            key={child.id}
+            layer={child}
+            section={section}
+            selected={selected}
+            onSelect={onSelect}
+            editable={editable}
+          />
+        ))}
+        {editable && isEmpty && (
+          <span className="custom-layer-placeholder">Empty Div</span>
+        )}
+      </div>
+    );
+  }
+
+  if (layer.type === "image") {
+    return (
+      <div
+        {...target}
+        id={`custom-${layer.id}`}
+        className={className}
+        style={{ ...style, ...toImageFrameStyle(layer.image) }}
+        onClick={selectLayer}
+      >
+        {layer.image?.url ? (
+          <img
+            src={layer.image.url}
+            alt={layer.image.alt || layer.name}
+            style={toImageContentStyle(layer.image)}
+          />
+        ) : (
+          <span>Image layer</span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <p
+      {...target}
+      id={`custom-${layer.id}`}
+      className={className}
+      style={style}
+      onClick={selectLayer}
+    >
+      {layer.text || "New text layer"}
+    </p>
   );
 }
 
@@ -837,6 +1226,7 @@ function SectionHeading({
 
   return (
     <div
+      {...editorTarget(section.id, "layer:section-heading")}
       className="section-heading"
       style={{
         ...toElementStyle(headingLayerSettings),

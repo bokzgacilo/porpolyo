@@ -11,7 +11,12 @@ export function createDefaultPortfolio(templateId: string, paletteId: string, ow
       visible: true,
       locked: true,
       order: 0,
-      content: { logoText: owner.fullName, contactButton: "Contact" },
+      content: {
+        logoText: owner.fullName,
+        contactButton: "Contact",
+        tabletNavigationMode: "text",
+        mobileNavigationMode: "text",
+      },
       settings: { spacing: "small", contentWidth: "wide" }
     },
     {

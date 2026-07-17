@@ -1,6 +1,7 @@
 import {
   Box,
   Button,
+  Checkbox,
   Flex,
   Grid,
   HStack,
@@ -18,6 +19,7 @@ import {
   ImagePlus,
   Link2,
   Save,
+  Search,
   Settings,
   SlidersHorizontal,
   Trash2,
@@ -28,6 +30,7 @@ import { getProjectAnalytics } from "../lib/projects";
 import { uploadImageToSupabase } from "../lib/uploadImage";
 import { ImageAsset, Portfolio } from "../types/portfolio";
 import { JsonModal } from "./editor/JsonModal";
+import { AnalyticsChart } from "./settings/AnalyticsChart";
 
 type UtmForm = {
   source: string;
@@ -52,7 +55,9 @@ export function ProjectSettings({
 }) {
   const [origin, setOrigin] = useState("");
   const [showJson, setShowJson] = useState(false);
-  const [activeSettingsTab, setActiveSettingsTab] = useState<"project" | "editor">("project");
+  const [activeSettingsTab, setActiveSettingsTab] = useState<
+    "project" | "metrics" | "seo" | "editor"
+  >("project");
   const [analytics, setAnalytics] = useState<number[]>(Array.from({ length: 30 }, () => 0));
   const [utm, setUtm] = useState<UtmForm>({
     source: "twitter",
@@ -138,13 +143,27 @@ export function ProjectSettings({
         </HStack>
       </Flex>
 
-      <HStack className="settings-tabs" gap="2">
+      <HStack className="settings-tabs" gap="2" flexWrap="wrap">
         <Button
           onClick={() => setActiveSettingsTab("project")}
           size="sm"
           variant={activeSettingsTab === "project" ? "solid" : "outline"}
         >
           <Settings size={16} /> Project settings
+        </Button>
+        <Button
+          onClick={() => setActiveSettingsTab("metrics")}
+          size="sm"
+          variant={activeSettingsTab === "metrics" ? "solid" : "outline"}
+        >
+          <BarChart3 size={16} /> Metrics
+        </Button>
+        <Button
+          onClick={() => setActiveSettingsTab("seo")}
+          size="sm"
+          variant={activeSettingsTab === "seo" ? "solid" : "outline"}
+        >
+          <Search size={16} /> SEO/AEO
         </Button>
         <Button
           onClick={() => setActiveSettingsTab("editor")}
@@ -155,8 +174,9 @@ export function ProjectSettings({
         </Button>
       </HStack>
 
-      {activeSettingsTab === "project" ? (
+      {activeSettingsTab !== "editor" ? (
       <Grid className="settings-grid" gap="5">
+        {activeSettingsTab === "project" && (
         <SettingsSection icon={<Settings size={18} />} title="Project">
           <SimpleGrid columns={{ base: 1, md: 2 }} gap="3">
             <SettingsField label="Project name" value={portfolio.title} onChange={(title) => updatePortfolio({ title })} />
@@ -183,7 +203,10 @@ export function ProjectSettings({
             <SettingsField label="Custom domain placeholder" value={portfolio.settings.customDomain || ""} onChange={(customDomain) => updateSettings({ customDomain })} placeholder="portfolio.example.com" />
           </SimpleGrid>
         </SettingsSection>
+        )}
 
+        {activeSettingsTab === "seo" && (
+        <>
         <SettingsSection icon={<ExternalLink size={18} />} title="LinkedIn / Open Graph Preview">
           <SocialPreview
             title={portfolio.head.ogTitle || portfolio.head.title}
@@ -213,14 +236,18 @@ export function ProjectSettings({
             <UploadField label="Upload / replace Twitter image" onUpload={(file) => uploadPreviewImage(file, "twitter")} />
           </SimpleGrid>
         </SettingsSection>
+        </>
+        )}
 
+        {activeSettingsTab === "metrics" && (
+        <>
         <SettingsSection icon={<BarChart3 size={18} />} title="Analytics">
           <SimpleGrid columns={{ base: 1, md: 3 }} gap="3">
             <MetricCard label="Last 7 days" value={sum(analytics.slice(-7))} />
             <MetricCard label="Last 30 days" value={sum(analytics)} />
             <MetricCard label="Daily average" value={Math.round(sum(analytics) / analytics.length)} />
           </SimpleGrid>
-          <AnalyticsGraph values={analytics} />
+          <AnalyticsChart values={analytics} />
         </SettingsSection>
 
         <SettingsSection icon={<Link2 size={18} />} title="UTM Tracker">
@@ -245,13 +272,17 @@ export function ProjectSettings({
             </Button>
           </Box>
         </SettingsSection>
+        </>
+        )}
 
+        {activeSettingsTab === "project" && (
         <SettingsSection icon={<Trash2 size={18} />} title="Danger Zone">
           <Text color="fg.muted" fontSize="sm">Delete this project and remove it from the dashboard. This cannot be undone.</Text>
           <Button alignSelf="flex-start" colorPalette="red" onClick={onDelete} variant="outline">
             <Trash2 size={16} /> Delete project
           </Button>
         </SettingsSection>
+        )}
       </Grid>
       ) : (
         <Grid className="settings-grid" gap="5">
@@ -259,6 +290,40 @@ export function ProjectSettings({
             <Text color="fg.muted" fontSize="sm">
               These settings control the builder interface for this portfolio. The properties panel width is clamped between the min and max values below.
             </Text>
+            <Stack gap="1" align="start">
+              <Checkbox.Root
+                checked={editorSettings.alwaysOpenTour ?? false}
+                onCheckedChange={(details) =>
+                  updateEditorSettings({
+                    alwaysOpenTour: details.checked === true,
+                  })
+                }
+              >
+                <Checkbox.HiddenInput />
+                <Checkbox.Control />
+                <Checkbox.Label>Always open the editor tour</Checkbox.Label>
+              </Checkbox.Root>
+              <Text ps="7" color="fg.muted" fontSize="xs">
+                Start the guided panel walkthrough every time this builder page opens.
+              </Text>
+            </Stack>
+            <Stack gap="1" align="start">
+              <Checkbox.Root
+                checked={editorSettings.showBoxModelOverlay ?? true}
+                onCheckedChange={(details) =>
+                  updateEditorSettings({
+                    showBoxModelOverlay: details.checked === true,
+                  })
+                }
+              >
+                <Checkbox.HiddenInput />
+                <Checkbox.Control />
+                <Checkbox.Label>Show box model overlay</Checkbox.Label>
+              </Checkbox.Root>
+              <Text ps="7" color="fg.muted" fontSize="xs">
+                Display margin and padding guides around the selected canvas element.
+              </Text>
+            </Stack>
             <SimpleGrid columns={{ base: 1, md: 3 }} gap="3">
               <SettingsNumberField
                 label="Properties panel min width"
@@ -419,17 +484,6 @@ function MetricCard({ label, value }: { label: string; value: number }) {
     <Box className="metric-card">
       <Text as="span">{label}</Text>
       <Text as="strong">{value.toLocaleString()}</Text>
-    </Box>
-  );
-}
-
-function AnalyticsGraph({ values }: { values: number[] }) {
-  const max = Math.max(...values, 1);
-  return (
-    <Box className="analytics-graph" aria-label="Portfolio views over the last 30 days">
-      {values.map((value, index) => (
-        <span key={`${value}-${index}`} title={`Day ${index + 1}: ${value} views`} style={{ height: `${Math.max((value / max) * 100, 6)}%` }} />
-      ))}
     </Box>
   );
 }

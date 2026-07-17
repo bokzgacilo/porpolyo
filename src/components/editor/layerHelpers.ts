@@ -1,14 +1,6 @@
 import {
-  BadgeCheck,
-  BriefcaseBusiness,
-  FileText,
-  Home,
-  PanelLeft,
-  User,
-  Wrench,
-} from "lucide-react";
-import {
   CertificationItem,
+  CustomLayer,
   PortfolioSection,
   ProjectItem,
   SectionType,
@@ -16,149 +8,345 @@ import {
   ServiceItem,
 } from "../../types/portfolio";
 
-export const sectionIcons: Record<SectionType, React.ElementType> = {
-  header: Home,
-  hero: User,
-  projects: BriefcaseBusiness,
-  certifications: BadgeCheck,
-  services: Wrench,
-  about: FileText,
-  footer: PanelLeft,
-};
-
 export type LayerNode = {
   id: string;
   label: string;
   selection: SelectedElement;
   removable: boolean;
   sortable?: boolean;
+  acceptsChildren?: boolean;
+  customType?: CustomLayer["type"];
   children?: LayerNode[];
 };
 
-export function layerNames(type: SectionType) {
-  const layers: Record<SectionType, string[]> = {
-    header: ["Logo", "Navigation", "Contact button"],
-    hero: [
-      "Eyebrow text",
-      "Headline",
-      "Description",
-      "Primary button",
-      "Secondary button",
-      "Hero image",
-    ],
-    projects: ["Section heading", "Project grid", "Project cards"],
-    certifications: ["Section heading", "Certification list"],
-    services: ["Section heading", "Service cards"],
-    about: ["Heading", "Long-form description", "Skills", "Profile image"],
-    footer: ["Logo", "Social links", "Copyright text"],
-  };
-  return layers[type];
-}
-
-export function getLayerSelection(
+export function getSectionLayers(
   section: PortfolioSection,
-  layer: string,
-): SelectedElement {
-  const layerMap: Record<string, SelectedElement> = {
-    Logo: { kind: "text", sectionId: section.id, field: "logoText", label: "Header Logo", limit: 60 },
-    Navigation: { kind: "layer", sectionId: section.id, layerId: "navigation", label: "Navigation" },
-    "Contact button": { kind: "text", sectionId: section.id, field: "contactButton", label: "Contact Button", limit: 40 },
-    "Eyebrow text": { kind: "text", sectionId: section.id, field: "eyebrow", label: "Hero Eyebrow", limit: 80 },
-    Headline: { kind: "text", sectionId: section.id, field: "headline", label: "Hero Headline", limit: 120 },
-    Description: { kind: "text", sectionId: section.id, field: "description", label: `${section.label} Description`, limit: section.type === "about" ? 1000 : 250 },
-    "Primary button": { kind: "text", sectionId: section.id, field: "primaryCta", label: "Primary Button", limit: 40 },
-    "Secondary button": { kind: "text", sectionId: section.id, field: "secondaryCta", label: "Secondary Button", limit: 40 },
-    "Hero image": { kind: "image", sectionId: section.id, field: "image", label: "Hero Image", slot: "hero-image" },
-    "Section heading": { kind: "text", sectionId: section.id, field: "title", label: `${section.label} Title`, limit: 100 },
-    "Project grid": { kind: "layer", sectionId: section.id, layerId: "project-grid", label: "Project Grid" },
-    "Project cards": { kind: "layer", sectionId: section.id, layerId: "project-grid", label: "Project Cards" },
-    "Certification list": { kind: "layer", sectionId: section.id, layerId: "certification-list", label: "Certification List" },
-    "Service cards": { kind: "layer", sectionId: section.id, layerId: "service-cards", label: "Service Cards" },
-    Heading: { kind: "text", sectionId: section.id, field: "title", label: `${section.label} Heading`, limit: 80 },
-    "Long-form description": { kind: "text", sectionId: section.id, field: "description", label: "About Description", limit: 1000 },
-    Skills: { kind: "layer", sectionId: section.id, layerId: "about-content", label: "Skills" },
-    "Profile image": { kind: "image", sectionId: section.id, field: "profileImage", label: "Profile Image", slot: "profile-image" },
-    "Copyright text": { kind: "text", sectionId: section.id, field: "copyright", label: "Copyright Text", limit: 120 },
-    "Social links": { kind: "layer", sectionId: section.id, layerId: "social-links", label: "Social Links" },
-  };
-  return layerMap[layer] || { kind: "section", sectionId: section.id };
+  allSections: PortfolioSection[] = [section],
+): LayerNode[] {
+  const customLayers = section.customLayers || [];
+  return [{
+    id: `${section.id}-root`,
+    label: `${section.label} section`,
+    selection: { kind: "section", sectionId: section.id },
+    removable: false,
+    children: [
+      ...attachNativeContainerChildren(
+        section,
+        sectionChildren(section, allSections),
+        customLayers,
+      ),
+      ...customLayerNodes(
+        section,
+        customLayers.filter((layer) => !layer.parentLayerId),
+      ),
+    ],
+  }];
 }
 
-export function getSectionLayers(section: PortfolioSection): LayerNode[] {
+function sectionChildren(
+  section: PortfolioSection,
+  allSections: PortfolioSection[],
+): LayerNode[] {
+  if (section.type === "header") {
+    return [
+      textLayer(section, "logoText", "Logo", "Header Logo", 60),
+      {
+        id: `${section.id}-navigation`,
+        label: "Navigation",
+        selection: layerSelection(section, "navigation", "Navigation"),
+        removable: false,
+        acceptsChildren: true,
+        children: allSections
+          .filter(
+            (item) => item.visible && !["header", "footer"].includes(item.type),
+          )
+          .map((item) => ({
+            id: `${section.id}-navigation-${item.id}`,
+            label: item.label,
+            selection: layerSelection(
+              section,
+              `navigation-link:${item.id}`,
+              `${item.label} Navigation Link`,
+            ),
+            removable: false,
+          })),
+      },
+      textLayer(section, "contactButton", "Contact button", "Contact Button", 40),
+    ];
+  }
+
+  if (section.type === "hero") {
+    return [
+      {
+        id: `${section.id}-hero-content`,
+        label: "Hero content",
+        selection: layerSelection(section, "hero-content", "Hero Content"),
+        removable: false,
+        acceptsChildren: true,
+        children: [
+          textLayer(section, "eyebrow", "Eyebrow", "Hero Eyebrow", 80),
+          textLayer(section, "headline", "Headline", "Hero Headline", 120),
+          textLayer(section, "description", "Description", "Hero Description", 250),
+          textLayer(section, "primaryCta", "Primary button", "Primary Button", 40),
+          textLayer(section, "secondaryCta", "Secondary button", "Secondary Button", 40),
+        ],
+      },
+      imageLayer(section, "image", "Hero image", "Hero Image", "hero-image"),
+    ];
+  }
+
   if (section.type === "projects") {
     const projects = (section.content.items || []) as ProjectItem[];
     return [
-      { id: `${section.id}-heading`, label: "Section heading", selection: { kind: "text", sectionId: section.id, field: "title", label: "Projects Section Heading", limit: 80 }, removable: false },
-      { id: `${section.id}-subheading`, label: "Section subheading", selection: { kind: "text", sectionId: section.id, field: "subtitle", label: "Projects Section Subheading", limit: 250 }, removable: false },
+      headingLayer(section, 80),
       {
-        id: `${section.id}-list`,
+        id: `${section.id}-projects-list`,
         label: "Projects list",
-        selection: { kind: "layer", sectionId: section.id, layerId: "project-grid", label: "Projects List" },
+        selection: layerSelection(section, "project-grid", "Projects List"),
         removable: false,
-        children: projects.map((project, index) => ({
-          id: project.id,
-          label: project.title || `Project card ${index + 1}`,
-          selection: { kind: "project", sectionId: section.id, itemId: project.id } as SelectedElement,
-          removable: true,
-          sortable: true,
-          children: [
-            childLayer(project.id, "image", "Project image", `${project.title || `Project ${index + 1}`} Image`, section.id),
-            childLayer(project.id, "title", "Title", `${project.title || `Project ${index + 1}`} Title`, section.id),
-            childLayer(project.id, "description", "Description", `${project.title || `Project ${index + 1}`} Description`, section.id),
-            childLayer(project.id, "tags", "Tags", `${project.title || `Project ${index + 1}`} Tags`, section.id),
-            childLayer(project.id, "cta", "CTA", `${project.title || `Project ${index + 1}`} CTA`, section.id),
-          ],
-        })),
+        acceptsChildren: true,
+        children: projects.map((project, index) => {
+          const name = project.title || `Project ${index + 1}`;
+          return {
+            id: project.id,
+            label: name,
+            selection: { kind: "project", sectionId: section.id, itemId: project.id },
+            removable: true,
+            sortable: true,
+            children: [
+              childLayer(project.id, "image", "Image", `${name} Image`, section.id),
+              childLayer(project.id, "title", "Title", `${name} Title`, section.id),
+              childLayer(project.id, "description", "Description", `${name} Description`, section.id),
+              childLayer(project.id, "tags", "Tags", `${name} Tags`, section.id),
+              childLayer(project.id, "cta", "CTA", `${name} CTA`, section.id),
+            ],
+          };
+        }),
       },
     ];
   }
 
-  const baseLayers = layerNames(section.type).map((layer) => ({
-    id: `${section.id}-${layer}`,
-    label: layer,
-    selection: getLayerSelection(section, layer),
-    removable: false,
-  }));
-
   if (section.type === "certifications") {
     const certifications = (section.content.items || []) as CertificationItem[];
     return [
-      ...baseLayers,
-      ...certifications.map((certification, index) => ({
-        id: certification.id,
-        label: certification.name || `Certification ${index + 1}`,
-        selection: { kind: "certification", sectionId: section.id, itemId: certification.id } as SelectedElement,
-        removable: true,
-      })),
-      ...certifications.map((certification, index) => ({
-        id: `${certification.id}-image`,
-        label: `${certification.name || `Certification ${index + 1}`} image`,
-        selection: { kind: "layer", sectionId: section.id, layerId: `certification:${certification.id}:image`, label: `${certification.name || `Certification ${index + 1}`} Image` } as SelectedElement,
+      headingLayer(section, 100),
+      {
+        id: `${section.id}-certification-list`,
+        label: "Certification list",
+        selection: layerSelection(section, "certification-list", "Certification List"),
         removable: false,
-      })),
+        acceptsChildren: true,
+        children: certifications.map((certification, index) => ({
+          id: certification.id,
+          label: certification.name || `Certification ${index + 1}`,
+          selection: { kind: "certification", sectionId: section.id, itemId: certification.id },
+          removable: true,
+          sortable: true,
+          children: [{
+            id: `${certification.id}-image`,
+            label: "Image",
+            selection: layerSelection(
+              section,
+              `certification:${certification.id}:image`,
+              `${certification.name || `Certification ${index + 1}`} Image`,
+            ),
+            removable: false,
+          }],
+        })),
+      },
     ];
   }
 
   if (section.type === "services") {
     const services = (section.content.items || []) as ServiceItem[];
     return [
-      ...baseLayers,
-      ...services.map((service, index) => ({
-        id: service.id,
-        label: service.title || `Service card ${index + 1}`,
-        selection: { kind: "service", sectionId: section.id, itemId: service.id } as SelectedElement,
-        removable: true,
-      })),
-      ...services.map((service, index) => ({
-        id: `${service.id}-icon`,
-        label: `${service.title || `Service ${index + 1}`} icon/image`,
-        selection: { kind: "layer", sectionId: section.id, layerId: `service:${service.id}:icon`, label: `${service.title || `Service ${index + 1}`} Icon/Image` } as SelectedElement,
+      headingLayer(section, 80),
+      {
+        id: `${section.id}-services-list`,
+        label: "Service cards",
+        selection: layerSelection(section, "service-cards", "Service Cards"),
         removable: false,
-      })),
+        acceptsChildren: true,
+        children: services.map((service, index) => ({
+          id: service.id,
+          label: service.title || `Service card ${index + 1}`,
+          selection: { kind: "service", sectionId: section.id, itemId: service.id },
+          removable: true,
+          sortable: true,
+          children: [{
+            id: `${service.id}-icon`,
+            label: "Icon / image",
+            selection: layerSelection(
+              section,
+              `service:${service.id}:icon`,
+              `${service.title || `Service ${index + 1}`} Icon/Image`,
+            ),
+            removable: false,
+          }],
+        })),
+      },
     ];
   }
 
-  return baseLayers;
+  if (section.type === "about") {
+    return [
+      {
+        id: `${section.id}-about-content`,
+        label: "About content",
+        selection: layerSelection(section, "about-content", "About Content"),
+        removable: false,
+        acceptsChildren: true,
+        children: [
+          textLayer(section, "title", "Heading", "About Heading", 80),
+          textLayer(section, "description", "Description", "About Description", 1000),
+          {
+            id: `${section.id}-skills`,
+            label: "Skills",
+            selection: layerSelection(section, "skills", "Skills"),
+            removable: false,
+          },
+        ],
+      },
+      {
+        id: `${section.id}-about-panel`,
+        label: "Contact panel",
+        selection: layerSelection(section, "about-panel", "About Contact Panel"),
+        removable: false,
+        acceptsChildren: true,
+      },
+    ];
+  }
+
+  return [
+    textLayer(section, "logoText", "Logo", "Footer Logo", 60),
+    textLayer(section, "message", "Message", "Footer Message", 160),
+    {
+      id: `${section.id}-back-to-top`,
+      label: "Back to top link",
+      selection: layerSelection(section, "back-to-top", "Back to Top Link"),
+      removable: false,
+    },
+    textLayer(section, "copyright", "Copyright", "Copyright Text", 160),
+  ];
+}
+
+function headingLayer(section: PortfolioSection, limit: number): LayerNode {
+  const children = [textLayer(section, "title", "Title", `${section.label} Title`, limit)];
+  if (section.content.subtitle !== undefined) {
+    children.push(textLayer(section, "subtitle", "Subtitle", `${section.label} Subtitle`, 250));
+  }
+  return {
+    id: `${section.id}-section-heading`,
+    label: "Section heading",
+    selection: layerSelection(section, "section-heading", "Section Heading"),
+    removable: false,
+    children,
+  };
+}
+
+function textLayer(
+  section: PortfolioSection,
+  field: string,
+  label: string,
+  fullLabel: string,
+  limit: number,
+): LayerNode {
+  return {
+    id: `${section.id}-text-${field}`,
+    label,
+    selection: { kind: "text", sectionId: section.id, field, label: fullLabel, limit },
+    removable: false,
+  };
+}
+
+function imageLayer(
+  section: PortfolioSection,
+  field: string,
+  label: string,
+  fullLabel: string,
+  slot: string,
+): LayerNode {
+  return {
+    id: `${section.id}-image-${field}`,
+    label,
+    selection: { kind: "image", sectionId: section.id, field, label: fullLabel, slot },
+    removable: false,
+  };
+}
+
+function layerSelection(
+  section: PortfolioSection,
+  layerId: string,
+  label: string,
+): SelectedElement {
+  return { kind: "layer", sectionId: section.id, layerId, label };
+}
+
+function customLayerNodes(
+  section: PortfolioSection,
+  layers: CustomLayer[],
+): LayerNode[] {
+  return layers.map((layer) => ({
+    id: `custom:${layer.id}`,
+    label: layer.name,
+    selection: layerSelection(section, `custom:${layer.id}`, layer.name),
+    removable: true,
+    sortable: true,
+    acceptsChildren: layer.type === "div",
+    customType: layer.type,
+    children:
+      layer.type === "div"
+        ? customLayerNodes(section, layer.children || [])
+        : undefined,
+  }));
+}
+
+function attachNativeContainerChildren(
+  section: PortfolioSection,
+  nodes: LayerNode[],
+  customLayers: CustomLayer[],
+): LayerNode[] {
+  return nodes.map((node) => {
+    const nativeLayerId =
+      node.selection.kind === "layer" && node.acceptsChildren
+        ? node.selection.layerId
+        : undefined;
+    const assignedLayers = nativeLayerId
+      ? customLayers.filter((layer) => layer.parentLayerId === nativeLayerId)
+      : [];
+    return {
+      ...node,
+      children: [
+        ...attachNativeContainerChildren(
+          section,
+          node.children || [],
+          customLayers,
+        ),
+        ...customLayerNodes(section, assignedLayers),
+      ],
+    };
+  });
+}
+
+export function isNativeContainerLayerId(layerId: string) {
+  return [
+    "navigation",
+    "hero-content",
+    "project-grid",
+    "certification-list",
+    "service-cards",
+    "about-content",
+    "about-panel",
+  ].includes(layerId);
+}
+
+export function customLayerIdFromSelection(
+  selected: SelectedElement | undefined,
+) {
+  if (selected?.kind !== "layer" || !selected.layerId.startsWith("custom:")) {
+    return undefined;
+  }
+  return selected.layerId.slice("custom:".length);
 }
 
 export function selectedLabel(

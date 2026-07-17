@@ -1,9 +1,32 @@
-import { DndContext, DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { DndContext, DragEndEvent, useDroppable } from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Box, Button, HStack, IconButton, Text, TreeView, createTreeCollection } from "@chakra-ui/react";
-import { GripVertical, Trash2 } from "lucide-react";
-import { useMemo } from "react";
+import {
+  Box,
+  Button,
+  HStack,
+  Icon,
+  IconButton,
+  Text,
+  TreeView,
+  createTreeCollection,
+} from "@chakra-ui/react";
+import {
+  Grid2X2,
+  GripVertical,
+  Image,
+  Layers3,
+  Rows3,
+  Square,
+  Trash2,
+  Type,
+} from "lucide-react";
+import { useEffect, useMemo, useRef } from "react";
+import { getSectionLayoutMode } from "../../config/sectionLayoutSettings";
 import { PortfolioSection, SelectedElement } from "../../types/portfolio";
 import { LayerNode, selectedLabel } from "./layerHelpers";
 
@@ -17,7 +40,9 @@ export function LayerTree({
   onExpandedLayerIdsChange,
   onSelect,
   onRemove,
-  onReorderProject,
+  onReorderCollection,
+  onReorderCustomLayer,
+  onMoveCustomLayerToContainer,
 }: {
   layers: LayerNode[];
   selected?: SelectedElement;
@@ -26,12 +51,23 @@ export function LayerTree({
   onExpandedLayerIdsChange: (layerIds: string[]) => void;
   onSelect: (selection: SelectedElement) => void;
   onRemove: (selection: SelectedElement) => void;
-  onReorderProject: (activeId: string, overId: string) => void;
+  onReorderCollection: (activeId: string, overId: string) => void;
+  onReorderCustomLayer: (activeId: string, overId: string) => void;
+  onMoveCustomLayerToContainer: (activeId: string, parentLayerId: string) => void;
 }) {
-  const projectIds = useMemo(() => flattenLayers(layers).filter((layer) => layer.sortable).map((layer) => layer.id), [layers]);
+  const projectIds = useMemo(
+    () =>
+      flattenLayers(layers)
+        .filter((layer) => layer.sortable)
+        .map((layer) => layer.id),
+    [layers],
+  );
   const selectedLayer = useMemo(
-    () => flattenLayers(layers).find((layer) => selectedLabel(selected, sections) === selectedLabel(layer.selection, sections)),
-    [layers, sections, selected],
+    () =>
+      flattenLayers(layers).find((layer) =>
+        sameSelection(selected, layer.selection),
+      ),
+    [layers, selected],
   );
   const selectedValue = selectedLayer ? [selectedLayer.id] : [];
   const collection = useMemo(
@@ -50,24 +86,68 @@ export function LayerTree({
       }),
     [layers],
   );
+  const initializedRoots = useRef(new Set<string>());
+  const root = layers[0];
+  const rootId = root?.id;
+
+  useEffect(() => {
+    if (!rootId || initializedRoots.current.has(rootId)) return;
+    initializedRoots.current.add(rootId);
+    const firstLevelBranches = (root.children || [])
+      .filter((node) => (node.children?.length || 0) > 0)
+      .map((node) => node.id);
+    onExpandedLayerIdsChange(
+      Array.from(new Set([...expandedLayerIds, rootId, ...firstLevelBranches])),
+    );
+  }, [expandedLayerIds, onExpandedLayerIdsChange, root, rootId]);
 
   const onDragEnd = (event: DragEndEvent) => {
     if (!event.over || event.active.id === event.over.id) return;
-    onReorderProject(String(event.active.id), String(event.over.id));
+    const activeId = String(event.active.id);
+    const overId = String(event.over.id);
+    const overLayer = flattenLayers(layers).find((layer) => layer.id === overId);
+    if (
+      activeId.startsWith("custom:") &&
+      !overId.startsWith("custom:") &&
+      overLayer?.acceptsChildren &&
+      overLayer.selection.kind === "layer"
+    ) {
+      onMoveCustomLayerToContainer(
+        activeId.slice("custom:".length),
+        overLayer.selection.layerId,
+      );
+      return;
+    }
+    if (activeId.startsWith("custom:") && overId.startsWith("custom:")) {
+      onReorderCustomLayer(
+        activeId.slice("custom:".length),
+        overId.slice("custom:".length),
+      );
+      return;
+    }
+    if (!activeId.startsWith("custom:") && !overId.startsWith("custom:")) {
+      onReorderCollection(activeId, overId);
+    }
   };
 
   return (
     <DndContext onDragEnd={onDragEnd}>
-      <SortableContext items={projectIds} strategy={verticalListSortingStrategy}>
+      <SortableContext
+        items={projectIds}
+        strategy={verticalListSortingStrategy}
+      >
         <TreeView.Root
           collection={collection}
           expandedValue={expandedLayerIds}
-          onExpandedChange={(details) => onExpandedLayerIdsChange(details.expandedValue)}
+          onExpandedChange={(details) =>
+            onExpandedLayerIdsChange(details.expandedValue)
+          }
           selectedValue={selectedValue}
           selectionMode="single"
-          className="chakra-layer-tree-root"
+          width="full"
+          size="sm"
         >
-          <TreeView.Tree className="chakra-layer-tree">
+          <TreeView.Tree width="full">
             <TreeView.Node
               indentGuide={<TreeView.BranchIndentGuide />}
               render={({ node, indexPath, nodeState }) => (
@@ -106,11 +186,29 @@ function SortableLayerNode({
   onSelect: (selection: SelectedElement) => void;
   onRemove: (selection: SelectedElement) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: node.id, disabled: !node.sortable });
+  const {
+    attributes,
+    isOver: isSortableOver,
+    listeners,
+    setNodeRef: setSortableRef,
+    transform,
+    transition,
+  } = useSortable({ id: node.id, disabled: !node.sortable });
+  const { isOver: isContainerOver, setNodeRef: setContainerRef } = useDroppable({
+    id: node.id,
+    disabled: !!node.sortable || !node.acceptsChildren,
+  });
+  const setNodeRef = (element: HTMLElement | null) => {
+    setSortableRef(element);
+    setContainerRef(element);
+  };
   const row = (
     <LayerTreeNodeRow
       node={node}
       active={active}
+      dropTarget={
+        (isSortableOver || isContainerOver) && !!node.acceptsChildren
+      }
       branch={branch}
       depth={depth}
       sections={sections}
@@ -120,10 +218,16 @@ function SortableLayerNode({
     />
   );
 
-  if (!node.sortable) return row;
+  if (!node.sortable && !node.acceptsChildren) return row;
 
   return (
-    <Box ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}>
+    <Box
+      ref={setNodeRef}
+      style={{
+        transform: node.sortable ? CSS.Transform.toString(transform) : undefined,
+        transition: node.sortable ? transition : undefined,
+      }}
+    >
       {row}
     </Box>
   );
@@ -132,6 +236,7 @@ function SortableLayerNode({
 function LayerTreeNodeRow({
   node,
   active,
+  dropTarget,
   branch,
   depth,
   sections,
@@ -141,6 +246,7 @@ function LayerTreeNodeRow({
 }: {
   node: LayerTreeNode;
   active: boolean;
+  dropTarget: boolean;
   branch: boolean;
   depth: number;
   sections: PortfolioSection[];
@@ -148,24 +254,83 @@ function LayerTreeNodeRow({
   onSelect: (selection: SelectedElement) => void;
   onRemove: (selection: SelectedElement) => void;
 }) {
-  const rowClass = `layer-row ${active ? "active-layer" : ""}`;
   const label = selectedLabel(node.selection, sections) || node.label;
+  const rowStyles = {
+    width: "full",
+    minH: "9",
+    ps: depth === 0 ? "1" : depth * 3,
+    pe: "1",
+    gap: "1",
+    rounded: "md",
+    borderWidth: "1px",
+    borderColor: dropTarget
+      ? "green.solid"
+      : active
+        ? "blue.solid"
+        : "transparent",
+    bg: dropTarget ? "green.subtle" : active ? "blue.subtle" : "transparent",
+    color: active ? "blue.fg" : "fg",
+    _hover: {
+      bg: dropTarget ? "green.subtle" : active ? "blue.subtle" : "bg.subtle",
+    },
+  } as const;
   const content = (
     <>
-      {node.sortable ? (
-        <span className="drag layer-drag" {...dragHandle}>
-          <GripVertical size={14} />
-        </span>
-      ) : branch ? (
-        <TreeView.BranchTrigger className="tree-toggle">
+      {branch ? (
+        <TreeView.BranchTrigger
+          aria-label={`Toggle ${node.label}`}
+          boxSize="7"
+          display="grid"
+          flexShrink={0}
+          placeItems="center"
+          color="fg.muted"
+          rounded="sm"
+          _hover={{ bg: "bg.muted" }}
+        >
           <TreeView.BranchIndicator />
         </TreeView.BranchTrigger>
       ) : (
-        <span className="tree-toggle-placeholder" />
+        <Box boxSize="7" flexShrink={0} />
       )}
-      <Button onClick={() => onSelect(node.selection)} size="sm" variant="ghost" flex="1" justifyContent="flex-start" title={label}>
-        <Text as="span" truncate>{node.label}</Text>
-      </Button>
+      {node.sortable && (
+        <IconButton
+          {...dragHandle}
+          aria-label={`Reorder ${node.label}`}
+          title={`Reorder ${node.label}`}
+          size="xs"
+          variant="ghost"
+          color="fg.muted"
+          cursor="grab"
+          touchAction="none"
+          _active={{ cursor: "grabbing" }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <GripVertical size={14} />
+        </IconButton>
+      )}
+      <LayerTypeIcon node={node} sections={sections} />
+      {branch ? (
+        <Button
+          onClick={() => onSelect(node.selection)}
+          size="sm"
+          variant="ghost"
+          flex="1"
+          minW={0}
+          px="1"
+          justifyContent="flex-start"
+          title={label}
+        >
+          <Text as="span" truncate>
+            {node.label}
+          </Text>
+        </Button>
+      ) : (
+        <TreeView.ItemText flex="1" minW={0} title={label}>
+          <Text as="span" truncate>
+            {node.label}
+          </Text>
+        </TreeView.ItemText>
+      )}
       {node.removable && (
         <IconButton
           aria-label={`Remove ${node.label}`}
@@ -187,16 +352,14 @@ function LayerTreeNodeRow({
   if (branch) {
     return (
       <TreeView.BranchControl asChild>
-        <HStack className={rowClass} data-depth={depth} gap="2">
-          {content}
-        </HStack>
+        <HStack {...rowStyles}>{content}</HStack>
       </TreeView.BranchControl>
     );
   }
 
   return (
     <TreeView.Item asChild>
-      <HStack className={rowClass} data-depth={depth} gap="2" onClick={() => onSelect(node.selection)}>
+      <HStack {...rowStyles} onClick={() => onSelect(node.selection)}>
         {content}
       </HStack>
     </TreeView.Item>
@@ -204,5 +367,83 @@ function LayerTreeNodeRow({
 }
 
 function flattenLayers(layers: LayerNode[]): LayerNode[] {
-  return layers.flatMap((layer) => [layer, ...flattenLayers(layer.children || [])]);
+  return layers.flatMap((layer) => [
+    layer,
+    ...flattenLayers(layer.children || []),
+  ]);
+}
+
+function LayerTypeIcon({
+  node,
+  sections,
+}: {
+  node: LayerTreeNode;
+  sections: PortfolioSection[];
+}) {
+  let icon = Layers3;
+  let label = "Layer";
+  if (node.selection.kind === "section") {
+    const sectionId = node.selection.sectionId;
+    const section = sections.find((item) => item.id === sectionId);
+    const mode = section ? getSectionLayoutMode(section) : "stack";
+    icon = mode === "grid" ? Grid2X2 : Rows3;
+    label = mode === "grid" ? "Grid section" : "Stack section";
+  } else if (node.customType === "div") {
+    icon = Square;
+    label = "Div layer";
+  } else if (node.customType === "text" || node.selection.kind === "text") {
+    icon = Type;
+    label = "Text layer";
+  } else if (node.customType === "image" || node.selection.kind === "image") {
+    icon = Image;
+    label = "Image layer";
+  } else if (
+    node.selection.kind === "layer" &&
+    /(?:image|icon)$/.test(node.selection.layerId)
+  ) {
+    icon = Image;
+    label = "Image layer";
+  } else if (
+    node.selection.kind === "project" ||
+    node.selection.kind === "certification" ||
+    node.selection.kind === "service"
+  ) {
+    icon = Square;
+    label = "Item layer";
+  }
+
+  return (
+    <Icon
+      as={icon}
+      aria-label={label}
+      boxSize="4"
+      flexShrink={0}
+      color="fg.muted"
+    />
+  );
+}
+
+function sameSelection(
+  left: SelectedElement | undefined,
+  right: SelectedElement,
+) {
+  if (!left || left.kind !== right.kind) return false;
+  if (left.kind === "head" || left.kind === "body") return true;
+  if (right.kind === "head" || right.kind === "body") return false;
+  if (left.sectionId !== right.sectionId) return false;
+  if (left.kind === "section") return true;
+  if (right.kind === "section") return false;
+  if (left.kind === "layer" && right.kind === "layer") {
+    return left.layerId === right.layerId;
+  }
+  if (left.kind === "text" && right.kind === "text") {
+    return left.field === right.field;
+  }
+  if (left.kind === "image" && right.kind === "image") {
+    return left.field === right.field;
+  }
+  if ("itemId" in left && "itemId" in right) {
+    return left.itemId === right.itemId;
+  }
+  return false;
 }

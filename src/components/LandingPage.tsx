@@ -587,7 +587,7 @@ export function LandingPage({
             >
               porpolyo
             </Heading>
-            <HStack gap={4}>
+            <HStack gap={4} flexWrap="wrap" justify={{ base: "center", sm: "flex-end" }}>
               <Text
                 display={{ base: "none", md: "block" }}
                 fontFamily={brandFont}
@@ -597,6 +597,12 @@ export function LandingPage({
               >
                 {TAGLINE}
               </Text>
+              <Button asChild size="sm" variant="ghost">
+                <NextLink href="/privacy">Privacy</NextLink>
+              </Button>
+              <Button asChild size="sm" variant="ghost">
+                <NextLink href="/terms">Terms</NextLink>
+              </Button>
               <Button asChild size="sm" variant="outline">
                 <NextLink href="/dev">Dev blog</NextLink>
               </Button>

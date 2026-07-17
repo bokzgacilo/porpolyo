@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { UploadOverlay } from "../components/UploadOverlay";
 import { Provider } from "../components/ui/provider";
+import "driver.js/dist/driver.css";
 import "../styles.css";
 
 export const metadata: Metadata = {

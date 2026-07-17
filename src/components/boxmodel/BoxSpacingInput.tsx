@@ -1,3 +1,4 @@
+import { Field, Input, SimpleGrid, Stack } from "@chakra-ui/react";
 import type { BoxSpacing } from "../../types/portfolio";
 
 export function BoxSpacingInput({
@@ -13,15 +14,31 @@ export function BoxSpacingInput({
     onChange({ ...value, [side]: next });
 
   return (
-    <div className="field box-spacing-field">
-      <span>{label}</span>
-      <div className="box-spacing-grid">
-        <NumberMini label="Top" value={value.top} onChange={(next) => setSide("top", next)} />
-        <NumberMini label="Right" value={value.right} onChange={(next) => setSide("right", next)} />
-        <NumberMini label="Bottom" value={value.bottom} onChange={(next) => setSide("bottom", next)} />
-        <NumberMini label="Left" value={value.left} onChange={(next) => setSide("left", next)} />
-      </div>
-    </div>
+    <Field.Root>
+      <Field.Label>{label}</Field.Label>
+      <SimpleGrid columns={4} gapX={1} width="full">
+        <NumberMini
+          label="Top"
+          value={value.top}
+          onChange={(next) => setSide("top", next)}
+        />
+        <NumberMini
+          label="Right"
+          value={value.right}
+          onChange={(next) => setSide("right", next)}
+        />
+        <NumberMini
+          label="Bottom"
+          value={value.bottom}
+          onChange={(next) => setSide("bottom", next)}
+        />
+        <NumberMini
+          label="Left"
+          value={value.left}
+          onChange={(next) => setSide("left", next)}
+        />
+      </SimpleGrid>
+    </Field.Root>
   );
 }
 
@@ -35,18 +52,21 @@ function NumberMini({
   onChange: (value: number | undefined) => void;
 }) {
   return (
-    <label>
-      <small>{label}</small>
-      <input
+    <Field.Root>
+      <Field.Label>{label}</Field.Label>
+      <Input
+        size="xs"
         type="number"
         min="0"
         max="240"
         value={value ?? ""}
         placeholder="Auto"
         onChange={(event) =>
-          onChange(event.target.value === "" ? undefined : Number(event.target.value))
+          onChange(
+            event.target.value === "" ? undefined : Number(event.target.value),
+          )
         }
       />
-    </label>
+    </Field.Root>
   );
 }

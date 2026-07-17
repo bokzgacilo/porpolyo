@@ -25,6 +25,8 @@ export function Editor({
     selected,
     previewMode,
     unsaved,
+    history,
+    currentHistoryLabel,
     setPreviewMode,
     updateSection,
     reorderSections,
@@ -34,8 +36,13 @@ export function Editor({
     addCollectionItem,
     deleteCollectionItem,
     reorderCollectionItems,
+    addCustomLayer,
+    deleteCustomLayer,
+    reorderCustomLayers,
+    moveCustomLayerToContainer,
     undo,
     redo,
+    restoreHistory,
     select,
   } = useEditorStore();
   const [zoom, setZoom] = useState(1);
@@ -49,6 +56,7 @@ export function Editor({
   );
   const [bodyExpanded, setBodyExpanded] = useState(true);
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
+  const [spacePressed, setSpacePressed] = useState(false);
   const [canvasTrackWidth, setCanvasTrackWidth] = useState(900);
 
   const editorSettings = portfolio?.settings.editor || {};
@@ -75,6 +83,33 @@ export function Editor({
     return () => window.removeEventListener("resize", updateCanvasTrackWidth);
   }, [leftPanelWidth, propertiesPanelWidth]);
 
+  useEffect(() => {
+    const isTypingTarget = (target: EventTarget | null) =>
+      target instanceof HTMLElement &&
+      !!target.closest('input, textarea, select, [contenteditable="true"]');
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || isTypingTarget(event.target)) return;
+      event.preventDefault();
+      setSpacePressed(true);
+    };
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.code !== "Space" || isTypingTarget(event.target)) return;
+      event.preventDefault();
+      setSpacePressed(false);
+    };
+    const onWindowBlur = () => setSpacePressed(false);
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onWindowBlur);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onWindowBlur);
+    };
+  }, []);
+
   if (!portfolio) return null;
   const sections = [...portfolio.sections].sort((a, b) => a.order - b.order);
   const movable = sections.filter((section) => !section.locked);
@@ -91,13 +126,22 @@ export function Editor({
 
   const startPan = (event: React.PointerEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
+    const isCanvasControl =
+      !!target.closest(".canvas-controls") ||
+      !!target.closest(".selection-floating-bar");
+    const isPortfolio = !!target.closest(".portfolio-site");
+
+    if (!isCanvasControl && !isPortfolio) {
+      select(undefined);
+    }
+
     if (
-      target.closest(".portfolio-site") ||
-      target.closest(".canvas-controls") ||
-      target.closest(".selection-floating-bar")
+      isCanvasControl ||
+      (isPortfolio && !spacePressed)
     ) {
       return;
     }
+    if (spacePressed) event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     setPanStart({
       pointerId: event.pointerId,
@@ -164,6 +208,8 @@ export function Editor({
         onRedo={redo}
         onSave={onSave}
         onSettings={onSettings}
+        onStartTour={() => setLeftPanelCollapsed(false)}
+        alwaysOpenTour={editorSettings.alwaysOpenTour ?? false}
         onPreview={onPreview}
         onPublish={onPublish}
       />
@@ -176,6 +222,7 @@ export function Editor({
         overflow="hidden"
       >
         <Box
+          data-tour="structure-panel"
           flex={`0 0 ${leftPanelWidth}px`}
           minW={`${leftPanelWidth}px`}
           overflow="hidden"
@@ -204,14 +251,51 @@ export function Editor({
             }
             onAddSection={addSection}
             onAddCollectionItem={addCollectionItem}
+            onAddCustomLayer={(sectionId, type, parentId) => {
+              const id = crypto.randomUUID();
+              addCustomLayer(
+                sectionId,
+                {
+                  id,
+                  type,
+                  name:
+                    type === "div"
+                      ? "New div"
+                      : type === "text"
+                        ? "New text"
+                        : "New image",
+                  text: type === "text" ? "New text layer" : undefined,
+                  children: type === "div" ? [] : undefined,
+                },
+                parentId,
+              );
+              if (parentId) {
+                setExpandedLayers((current) => ({
+                  ...current,
+                  [`custom:${parentId}`]: true,
+                }));
+              }
+              select({
+                kind: "layer",
+                sectionId,
+                layerId: `custom:${id}`,
+                label: type === "div" ? "New div" : type === "text" ? "New text" : "New image",
+              });
+            }}
             onDeleteCollectionItem={deleteCollectionItem}
+            onDeleteCustomLayer={deleteCustomLayer}
             onExpandedLayersChange={(layerIds) => {
               setExpandedLayers(
                 Object.fromEntries(layerIds.map((layerId) => [layerId, true])),
               );
             }}
             onReorderCollectionItems={reorderCollectionItems}
+            onReorderCustomLayers={reorderCustomLayers}
+            onMoveCustomLayerToContainer={moveCustomLayerToContainer}
             onSelect={selectAndScroll}
+            history={history}
+            currentHistoryLabel={currentHistoryLabel}
+            onRestoreHistory={restoreHistory}
             collapsed={leftPanelCollapsed}
             onCollapsedChange={setLeftPanelCollapsed}
           />
@@ -225,27 +309,32 @@ export function Editor({
             justifyContent="end"
             minW={`${canvasTrackWidth + propertiesPanelWidth}px`}
           >
-            {selected?.kind === "head" ? (
-              <HeadMetadataEditor />
-            ) : (
-              <CanvasStage
-                portfolio={portfolio}
-                selected={selected}
-                previewMode={previewMode}
-                pan={pan}
-                zoom={zoom}
-                panning={!!panStart}
-                onPanChange={setPan}
-                onZoomChange={setZoom}
-                onPreviewModeChange={setPreviewMode}
-                onPointerDown={startPan}
-                onPointerMove={movePan}
-                onPointerUp={endPan}
-                onSelect={select}
-              />
-            )}
+            <Box data-tour="canvas" minW="0" h="full" overflow="hidden">
+              {selected?.kind === "head" ? (
+                <HeadMetadataEditor />
+              ) : (
+                <CanvasStage
+                  portfolio={portfolio}
+                  selected={selected}
+                  previewMode={previewMode}
+                  pan={pan}
+                  zoom={zoom}
+                  panning={!!panStart}
+                  panReady={spacePressed}
+                  onPanChange={setPan}
+                  onZoomChange={setZoom}
+                  onPreviewModeChange={setPreviewMode}
+                  onPointerDown={startPan}
+                  onPointerMove={movePan}
+                  onPointerUp={endPan}
+                  onSelect={select}
+                />
+              )}
+            </Box>
 
-            <PropertiesPanel />
+            <Box data-tour="properties-panel" minW="0" h="full" overflow="hidden">
+              <PropertiesPanel />
+            </Box>
           </Box>
         </Box>
       </Box>
