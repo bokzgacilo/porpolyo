@@ -25,14 +25,14 @@ import {
   Trash2,
   Type,
 } from "lucide-react";
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { getSectionLayoutMode } from "../../config/sectionLayoutSettings";
 import { PortfolioSection, SelectedElement } from "../../types/portfolio";
 import { LayerNode, selectedLabel } from "./layerHelpers";
 
 type LayerTreeNode = LayerNode & { children?: LayerTreeNode[] };
 
-export function LayerTree({
+export const LayerTree = memo(function LayerTree({
   layers,
   selected,
   sections,
@@ -55,19 +55,20 @@ export function LayerTree({
   onReorderCustomLayer: (activeId: string, overId: string) => void;
   onMoveCustomLayerToContainer: (activeId: string, parentLayerId: string) => void;
 }) {
+  const flatLayers = useMemo(() => flattenLayers(layers), [layers]);
   const projectIds = useMemo(
     () =>
-      flattenLayers(layers)
+      flatLayers
         .filter((layer) => layer.sortable)
         .map((layer) => layer.id),
-    [layers],
+    [flatLayers],
   );
   const selectedLayer = useMemo(
     () =>
-      flattenLayers(layers).find((layer) =>
+      flatLayers.find((layer) =>
         sameSelection(selected, layer.selection),
       ),
-    [layers, selected],
+    [flatLayers, selected],
   );
   const selectedValue = selectedLayer ? [selectedLayer.id] : [];
   const collection = useMemo(
@@ -105,7 +106,7 @@ export function LayerTree({
     if (!event.over || event.active.id === event.over.id) return;
     const activeId = String(event.active.id);
     const overId = String(event.over.id);
-    const overLayer = flattenLayers(layers).find((layer) => layer.id === overId);
+    const overLayer = flatLayers.find((layer) => layer.id === overId);
     if (
       activeId.startsWith("custom:") &&
       !overId.startsWith("custom:") &&
@@ -167,9 +168,9 @@ export function LayerTree({
       </SortableContext>
     </DndContext>
   );
-}
+});
 
-function SortableLayerNode({
+const SortableLayerNode = memo(function SortableLayerNode({
   node,
   depth,
   active,
@@ -198,10 +199,17 @@ function SortableLayerNode({
     id: node.id,
     disabled: !!node.sortable || !node.acceptsChildren,
   });
-  const setNodeRef = (element: HTMLElement | null) => {
-    setSortableRef(element);
-    setContainerRef(element);
-  };
+  const setNodeRef = useCallback(
+    (element: HTMLElement | null) => {
+      setSortableRef(element);
+      setContainerRef(element);
+    },
+    [setContainerRef, setSortableRef],
+  );
+  const dragHandle = useMemo(
+    () => (node.sortable ? { ...attributes, ...listeners } : undefined),
+    [attributes, listeners, node.sortable],
+  );
   const row = (
     <LayerTreeNodeRow
       node={node}
@@ -212,7 +220,7 @@ function SortableLayerNode({
       branch={branch}
       depth={depth}
       sections={sections}
-      dragHandle={node.sortable ? { ...attributes, ...listeners } : undefined}
+      dragHandle={dragHandle}
       onSelect={onSelect}
       onRemove={onRemove}
     />
@@ -231,9 +239,9 @@ function SortableLayerNode({
       {row}
     </Box>
   );
-}
+});
 
-function LayerTreeNodeRow({
+const LayerTreeNodeRow = memo(function LayerTreeNodeRow({
   node,
   active,
   dropTarget,
@@ -364,7 +372,7 @@ function LayerTreeNodeRow({
       </HStack>
     </TreeView.Item>
   );
-}
+});
 
 function flattenLayers(layers: LayerNode[]): LayerNode[] {
   return layers.flatMap((layer) => [

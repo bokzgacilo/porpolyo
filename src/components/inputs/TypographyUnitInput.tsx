@@ -4,6 +4,7 @@ import {
   NativeSelect,
   NumberInput,
 } from "@chakra-ui/react";
+import { useEffect, useState } from "react";
 import type { TypographyUnit } from "../../types/portfolio";
 
 const typographyUnits: TypographyUnit[] = ["rem", "em", "px", "%", "ch"];
@@ -19,6 +20,17 @@ export function TypographyUnitInput({
   unit: TypographyUnit;
   onChange: (value: number | undefined, unit: TypographyUnit) => void;
 }) {
+  const externalValue = value?.toString() ?? "";
+  const [draft, setDraft] = useState(externalValue);
+
+  useEffect(() => setDraft(externalValue), [externalValue]);
+
+  const commit = (nextUnit: TypographyUnit = unit) => {
+    const nextValue = draft === "" ? undefined : Number(draft);
+    if (nextValue !== undefined && !Number.isFinite(nextValue)) return;
+    if (nextValue !== value || nextUnit !== unit) onChange(nextValue, nextUnit);
+  };
+
   return (
     <Field.Root>
       <Field.Label>{label}</Field.Label>
@@ -27,23 +39,23 @@ export function TypographyUnitInput({
           flex="1"
           minW={0}
           size="xs"
-          value={value?.toString() ?? ""}
-          onValueChange={(details) =>
-            onChange(
-              details.value === "" ? undefined : details.valueAsNumber,
-              unit,
-            )
-          }
+          value={draft}
+          onValueChange={(details) => setDraft(details.value)}
         >
           <NumberInput.Control />
-          <NumberInput.Input />
+          <NumberInput.Input
+            onBlur={() => commit()}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+            }}
+          />
         </NumberInput.Root>
         <NativeSelect.Root size="xs" width="88px" flexShrink={0}>
           <NativeSelect.Field
             aria-label={`${label} unit`}
             value={unit}
             onChange={(event) =>
-              onChange(value, event.currentTarget.value as TypographyUnit)
+              commit(event.currentTarget.value as TypographyUnit)
             }
           >
             {typographyUnits.map((option) => (

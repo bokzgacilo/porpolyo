@@ -15,6 +15,7 @@ import {
   Tabs,
 } from "@chakra-ui/react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useCallback, useMemo } from "react";
 import type { EditorHistoryEntry } from "../../store/editorStore";
 import {
   PortfolioSection,
@@ -125,8 +126,10 @@ export function StructurePanel({
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
 }) {
-  const expandedLayerIds = Object.keys(expandedLayers).filter(
-    (layerId) => expandedLayers[layerId],
+  const expandedLayerIds = useMemo(
+    () =>
+      Object.keys(expandedLayers).filter((layerId) => expandedLayers[layerId]),
+    [expandedLayers],
   );
   const selectedCustomLayerId = customLayerIdFromSelection(selected);
   const selectedCustomLayer = selectedSection
@@ -134,6 +137,58 @@ export function StructurePanel({
     : undefined;
   const customLayerParentId =
     selectedCustomLayer?.type === "div" ? selectedCustomLayer.id : undefined;
+  const layers = useMemo(
+    () =>
+      selectedSection ? getSectionLayers(selectedSection, sections) : [],
+    [sections, selectedSection],
+  );
+  const selectedSectionId = selectedSection?.id;
+  const removeLayer = useCallback(
+    (selection: SelectedElement) => {
+      if (!selectedSectionId) return;
+      const customId = customLayerIdFromSelection(selection);
+      if (customId) {
+        onDeleteCustomLayer(selectedSectionId, customId);
+        onSelect({ kind: "section", sectionId: selectedSectionId });
+        return;
+      }
+      if ("itemId" in selection) {
+        onDeleteCollectionItem(selectedSectionId, selection.itemId);
+        onSelect({ kind: "section", sectionId: selectedSectionId });
+      }
+    },
+    [
+      onDeleteCollectionItem,
+      onDeleteCustomLayer,
+      onSelect,
+      selectedSectionId,
+    ],
+  );
+  const reorderCollection = useCallback(
+    (activeId: string, overId: string) => {
+      if (selectedSectionId)
+        onReorderCollectionItems(selectedSectionId, activeId, overId);
+    },
+    [onReorderCollectionItems, selectedSectionId],
+  );
+  const reorderCustomLayer = useCallback(
+    (activeId: string, overId: string) => {
+      if (selectedSectionId)
+        onReorderCustomLayers(selectedSectionId, activeId, overId);
+    },
+    [onReorderCustomLayers, selectedSectionId],
+  );
+  const moveCustomLayer = useCallback(
+    (activeId: string, parentLayerId: string) => {
+      if (selectedSectionId)
+        onMoveCustomLayerToContainer(
+          selectedSectionId,
+          activeId,
+          parentLayerId,
+        );
+    },
+    [onMoveCustomLayerToContainer, selectedSectionId],
+  );
 
   if (collapsed) {
     return (
@@ -222,22 +277,22 @@ export function StructurePanel({
                         <SectionRow
                           key={section.id}
                           section={section}
-                          onToggle={() => onToggleSection(section)}
-                          onDuplicate={() => onDuplicateSection(section)}
-                          onDelete={() => onDeleteSection(section)}
-                          onRename={() => onRenameSection(section)}
-                          onToggleLock={() => onToggleSectionLock(section)}
+                          onToggle={onToggleSection}
+                          onDuplicate={onDuplicateSection}
+                          onDelete={onDeleteSection}
+                          onRename={onRenameSection}
+                          onToggleLock={onToggleSectionLock}
                           onSelect={onSelect}
                         />
                       ) : (
                         <SortableSectionRow
                           key={section.id}
                           section={section}
-                          onToggle={() => onToggleSection(section)}
-                          onDuplicate={() => onDuplicateSection(section)}
-                          onDelete={() => onDeleteSection(section)}
-                          onRename={() => onRenameSection(section)}
-                          onToggleLock={() => onToggleSectionLock(section)}
+                          onToggle={onToggleSection}
+                          onDuplicate={onDuplicateSection}
+                          onDelete={onDeleteSection}
+                          onRename={onRenameSection}
+                          onToggleLock={onToggleSectionLock}
                           onSelect={onSelect}
                         />
                       ),
@@ -350,46 +405,16 @@ export function StructurePanel({
             </Text>
             {selectedSection && (
               <LayerTree
-                layers={getSectionLayers(selectedSection, sections)}
+                layers={layers}
                 selected={selected}
                 sections={sections}
                 expandedLayerIds={expandedLayerIds}
                 onExpandedLayerIdsChange={onExpandedLayersChange}
                 onSelect={onSelect}
-                onRemove={(selection) => {
-                  const customId = customLayerIdFromSelection(selection);
-                  if (customId) {
-                    onDeleteCustomLayer(selectedSection.id, customId);
-                    onSelect({
-                      kind: "section",
-                      sectionId: selectedSection.id,
-                    });
-                    return;
-                  }
-                  if ("itemId" in selection) {
-                    onDeleteCollectionItem(
-                      selectedSection.id,
-                      selection.itemId,
-                    );
-                    onSelect({
-                      kind: "section",
-                      sectionId: selectedSection.id,
-                    });
-                  }
-                }}
-                onReorderCollection={(activeId, overId) =>
-                  onReorderCollectionItems(selectedSection.id, activeId, overId)
-                }
-                onReorderCustomLayer={(activeId, overId) =>
-                  onReorderCustomLayers(selectedSection.id, activeId, overId)
-                }
-                onMoveCustomLayerToContainer={(activeId, parentLayerId) =>
-                  onMoveCustomLayerToContainer(
-                    selectedSection.id,
-                    activeId,
-                    parentLayerId,
-                  )
-                }
+                onRemove={removeLayer}
+                onReorderCollection={reorderCollection}
+                onReorderCustomLayer={reorderCustomLayer}
+                onMoveCustomLayerToContainer={moveCustomLayer}
               />
             )}
           </Stack>

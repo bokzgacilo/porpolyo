@@ -9,13 +9,8 @@ import {
   Settings,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Onboarding } from "./components/Onboarding";
-import { LandingPage } from "./components/LandingPage";
-import { Dashboard } from "./components/Dashboard";
-import { Editor } from "./components/Editor";
-import { PortfolioPreview } from "./components/PortfolioPreview";
-import { PortfolioPreviewPage } from "./components/PortfolioPreviewPage";
-import { ProjectSettings } from "./components/ProjectSettings";
+import dynamic from "next/dynamic";
+import { useShallow } from "zustand/react/shallow";
 import { createDefaultPortfolio } from "./data/defaultPortfolio";
 import { useEditorStore } from "./store/editorStore";
 import { Portfolio } from "./types/portfolio";
@@ -30,6 +25,35 @@ import {
   publishProject,
   saveProject,
 } from "./lib/projects";
+
+const Onboarding = dynamic(() =>
+  import("./components/Onboarding").then((module) => module.Onboarding),
+);
+const LandingPage = dynamic(() =>
+  import("./components/LandingPage").then((module) => module.LandingPage),
+);
+const Dashboard = dynamic(() =>
+  import("./components/Dashboard").then((module) => module.Dashboard),
+);
+const Editor = dynamic(
+  () => import("./components/Editor").then((module) => module.Editor),
+  { ssr: false },
+);
+const PortfolioPreview = dynamic(() =>
+  import("./components/PortfolioPreview").then(
+    (module) => module.PortfolioPreview,
+  ),
+);
+const PortfolioPreviewPage = dynamic(() =>
+  import("./components/PortfolioPreviewPage").then(
+    (module) => module.PortfolioPreviewPage,
+  ),
+);
+const ProjectSettings = dynamic(() =>
+  import("./components/ProjectSettings").then(
+    (module) => module.ProjectSettings,
+  ),
+);
 
 type Route =
   | "landing"
@@ -47,13 +71,19 @@ export function App() {
   const [portfolios, setPortfolios] = useState<Portfolio[]>([]);
   const [portfoliosLoading, setPortfoliosLoading] = useState(false);
   const [error, setError] = useState("");
-  const {
-    portfolio,
-    previewMode,
-    setPortfolio,
-    setPreviewMode,
-    markSaved,
-  } = useEditorStore();
+  const { portfolio, previewMode } = useEditorStore(
+    useShallow((state) => ({
+      portfolio: state.portfolio,
+      previewMode: state.previewMode,
+    })),
+  );
+  const { setPortfolio, setPreviewMode, markSaved } = useEditorStore(
+    useShallow((state) => ({
+      setPortfolio: state.setPortfolio,
+      setPreviewMode: state.setPreviewMode,
+      markSaved: state.markSaved,
+    })),
+  );
   const auth = useSupabaseAuth();
 
   useEffect(() => {

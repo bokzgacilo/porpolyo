@@ -1,6 +1,10 @@
 import { CSSProperties } from "react";
 import { ElementSettings, PortfolioSection, SelectedElement } from "../types/portfolio";
 
+const elementStyleCache = new WeakMap<ElementSettings, CSSProperties>();
+const emptyElementStyle = Object.freeze({}) as CSSProperties;
+const emptyElementSettings = Object.freeze({}) as ElementSettings;
+
 export function selectedElementKey(selected: SelectedElement) {
   if (selected.kind === "head") return "page:head";
   if (selected.kind === "body") return "page:body";
@@ -15,12 +19,14 @@ export function selectedElementKey(selected: SelectedElement) {
 
 export function getElementSettings(section: PortfolioSection, selectedOrKey: SelectedElement | string) {
   const key = typeof selectedOrKey === "string" ? selectedOrKey : selectedElementKey(selectedOrKey);
-  return section.elements?.[key] || {};
+  return section.elements?.[key] || emptyElementSettings;
 }
 
 export function toElementStyle(settings: ElementSettings | undefined): CSSProperties {
-  if (!settings) return {};
-  return {
+  if (!settings) return emptyElementStyle;
+  const cached = elementStyleCache.get(settings);
+  if (cached) return cached;
+  const style: CSSProperties = {
     color: settings.color,
     backgroundColor: settings.backgroundColor,
     fontFamily: settings.fontFamily,
@@ -91,6 +97,8 @@ export function toElementStyle(settings: ElementSettings | undefined): CSSProper
     gridColumn: settings.spanSection ? "1 / -1" : undefined,
     justifySelf: settings.spanSection ? "stretch" : undefined
   };
+  elementStyleCache.set(settings, style);
+  return style;
 }
 
 function spacingValue(value?: number) {

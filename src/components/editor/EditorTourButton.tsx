@@ -4,6 +4,7 @@ import { IconButton } from "@chakra-ui/react";
 import type { Driver } from "driver.js";
 import { useCallback, useEffect, useRef } from "react";
 import { LuCircleHelp } from "react-icons/lu";
+import "driver.js/dist/driver.css";
 
 const editorTourStorageKey = "porpolyo.editor-tour.v1";
 

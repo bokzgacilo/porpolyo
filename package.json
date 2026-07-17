@@ -18,6 +18,7 @@
     "@supabase/supabase-js": "^2.110.6",
     "@teispace/next-themes": "^2.0.4",
     "driver.js": "^1.7.0",
+    "immer": "^11.1.15",
     "lucide-react": "^0.468.0",
     "nanoid": "^5.0.7",
     "next": "^16.2.10",

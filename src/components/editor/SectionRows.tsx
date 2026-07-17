@@ -13,6 +13,7 @@ import { useEditorStore } from "../../store/editorStore";
 import { PortfolioSection, SelectedElement } from "../../types/portfolio";
 import { getSectionLayoutMode } from "../../config/sectionLayoutSettings";
 import { Grid2X2, Rows3 } from "lucide-react";
+import { memo } from "react";
 import {
   LuChevronDown,
   LuChevronRight,
@@ -85,7 +86,7 @@ export function PageStructureRow({
   );
 }
 
-export function SortableSectionRow({
+export const SortableSectionRow = memo(function SortableSectionRow({
   section,
   onToggle,
   onDuplicate,
@@ -95,11 +96,11 @@ export function SortableSectionRow({
   onSelect,
 }: {
   section: PortfolioSection;
-  onToggle: () => void;
-  onDuplicate: () => void;
-  onDelete: () => void;
-  onRename: () => void;
-  onToggleLock: () => void;
+  onToggle: (section: PortfolioSection) => void;
+  onDuplicate: (section: PortfolioSection) => void;
+  onDelete: (section: PortfolioSection) => void;
+  onRename: (section: PortfolioSection) => void;
+  onToggleLock: (section: PortfolioSection) => void;
   onSelect: (selection: SelectedElement) => void;
 }) {
   const {
@@ -128,9 +129,9 @@ export function SortableSectionRow({
       />
     </Box>
   );
-}
+});
 
-export function SectionRow({
+export const SectionRow = memo(function SectionRow({
   section,
   onToggle,
   onDuplicate,
@@ -141,11 +142,11 @@ export function SectionRow({
   dragHandle,
 }: {
   section: PortfolioSection;
-  onToggle: () => void;
-  onDuplicate: () => void;
-  onDelete: () => void;
-  onRename: () => void;
-  onToggleLock: () => void;
+  onToggle: (section: PortfolioSection) => void;
+  onDuplicate: (section: PortfolioSection) => void;
+  onDelete: (section: PortfolioSection) => void;
+  onRename: (section: PortfolioSection) => void;
+  onToggleLock: (section: PortfolioSection) => void;
   onSelect?: (selection: SelectedElement) => void;
   dragHandle?: {
     attributes: ReturnType<typeof useSortable>["attributes"];
@@ -153,11 +154,14 @@ export function SectionRow({
     setActivatorNodeRef: ReturnType<typeof useSortable>["setActivatorNodeRef"];
   };
 }) {
-  const { selected, select } = useEditorStore();
+  const active = useEditorStore(
+    (state) =>
+      state.selected?.kind === "section" &&
+      state.selected.sectionId === section.id,
+  );
+  const select = useEditorStore((state) => state.select);
   const layoutMode = getSectionLayoutMode(section);
   const Icon = layoutMode === "grid" ? Grid2X2 : Rows3;
-  const active =
-    selected?.kind === "section" && selected.sectionId === section.id;
   const handleSelect = onSelect || select;
   const structural = section.type === "header" || section.type === "footer";
 
@@ -215,7 +219,7 @@ export function SectionRow({
               color="fg.muted"
               onClick={(event) => {
                 event.stopPropagation();
-                onToggle();
+                onToggle(section);
               }}
               unstyled
             >
@@ -227,7 +231,7 @@ export function SectionRow({
                 color="fg.muted"
                 onClick={(event) => {
                   event.stopPropagation();
-                  onDuplicate();
+                  onDuplicate(section);
                 }}
                 unstyled
               >
@@ -240,24 +244,24 @@ export function SectionRow({
       <Portal>
         <Menu.Positioner>
           <Menu.Content>
-            <Menu.Item value="rename" onSelect={onRename}>
+            <Menu.Item value="rename" onSelect={() => onRename(section)}>
               <LuPenLine size={14} /> Rename
             </Menu.Item>
-            <Menu.Item value="visibility" onSelect={onToggle}>
+            <Menu.Item value="visibility" onSelect={() => onToggle(section)}>
               {section.visible ? <LuEyeOff size={14} /> : <LuEye size={14} />}
               {section.visible ? "Hide section" : "Show section"}
             </Menu.Item>
             <Menu.Item
               value="duplicate"
               disabled={section.locked || structural}
-              onSelect={onDuplicate}
+              onSelect={() => onDuplicate(section)}
             >
               <LuCopy size={14} /> Duplicate
             </Menu.Item>
             <Menu.Item
               value="lock"
               disabled={structural}
-              onSelect={onToggleLock}
+              onSelect={() => onToggleLock(section)}
             >
               <LuLock size={14} /> {section.locked ? "Unlock" : "Lock"}
             </Menu.Item>
@@ -265,7 +269,7 @@ export function SectionRow({
               value="delete"
               colorPalette="red"
               disabled={structural}
-              onSelect={onDelete}
+              onSelect={() => onDelete(section)}
             >
               <LuTrash2 size={14} /> Delete section
             </Menu.Item>
@@ -274,4 +278,4 @@ export function SectionRow({
       </Portal>
     </Menu.Root>
   );
-}
+});

@@ -10,24 +10,29 @@ export type ComputedBoxModel = {
 
 export function useComputedBoxModel(
   selected: SelectedElement | null | undefined,
-  renderState: unknown,
 ) {
   const [boxModel, setBoxModel] = useState<ComputedBoxModel>();
+  const sectionId =
+    selected && "sectionId" in selected ? selected.sectionId : undefined;
+  const selectionKey =
+    selected && selected.kind !== "head" && selected.kind !== "body"
+      ? selectedElementKey(selected)
+      : undefined;
 
   useEffect(() => {
-    if (!selected || selected.kind === "head" || selected.kind === "body") {
+    if (!sectionId || !selectionKey) {
       setBoxModel(undefined);
       return;
     }
 
-    const selectionKey = selectedElementKey(selected);
-    const target = Array.from(
-      document.querySelectorAll<HTMLElement>("[data-editor-selection-key]"),
-    ).find(
-      (element) =>
-        element.dataset.editorSectionId === selected.sectionId &&
-        element.dataset.editorSelectionKey === selectionKey,
+    const viewport = document.querySelector<HTMLElement>(".canvas-viewport");
+    const targetSelector = `[data-editor-section-id="${CSS.escape(sectionId)}"][data-editor-selection-key="${CSS.escape(selectionKey)}"]`;
+    const targets = Array.from(
+      viewport?.querySelectorAll<HTMLElement>(targetSelector) || [],
     );
+    const target =
+      targets.find((element) => element.getClientRects().length > 0) ||
+      targets[0];
 
     if (!target) {
       setBoxModel(undefined);
@@ -70,7 +75,7 @@ export function useComputedBoxModel(
       mutationObserver.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [selected, renderState]);
+  }, [sectionId, selectionKey]);
 
   return boxModel;
 }

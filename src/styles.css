@@ -68,6 +68,9 @@ a { color: inherit; text-decoration: none; }
 .canvas-stage.panning * {
   cursor: grabbing !important;
 }
+.canvas-stage.panning .canvas-viewport {
+  transition: none;
+}
 .canvas-viewport {
   position: relative;
   width: var(--canvas-width);
@@ -81,6 +84,8 @@ a { color: inherit; text-decoration: none; }
   will-change: transform;
   container-type: inline-size;
   container-name: portfolio-preview;
+  transform: translate(var(--canvas-pan-x, 0px), var(--canvas-pan-y, 0px)) scale(var(--canvas-zoom, 1));
+  transform-origin: top center;
 }
 .canvas-box-model-overlay {
   position: absolute;

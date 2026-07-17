@@ -1,5 +1,6 @@
 import type React from "react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { palettes, templates } from "../data/templates";
 import { limits } from "../data/limits";
 import {
@@ -80,13 +81,31 @@ import {
 } from "./editor/layerHelpers";
 
 export function PropertiesPanel() {
-  const store = useEditorStore();
-  const { portfolio, selected } = store;
-  const computedBoxModel = useComputedBoxModel(selected, portfolio);
-  const computedLayoutStructure = useComputedLayoutStructure(
-    selected,
-    portfolio,
+  const { portfolio, selected } = useEditorStore(
+    useShallow((state) => ({
+      portfolio: state.portfolio,
+      selected: state.selected,
+    })),
   );
+  const store = useEditorStore(
+    useShallow((state) => ({
+      addCollectionItem: state.addCollectionItem,
+      deleteCollectionItem: state.deleteCollectionItem,
+      updateCollectionItem: state.updateCollectionItem,
+      updateCustomLayer: state.updateCustomLayer,
+      updateElementSettings: state.updateElementSettings,
+      updateSection: state.updateSection,
+      updateSectionContent: state.updateSectionContent,
+      updateSectionImage: state.updateSectionImage,
+    })),
+  );
+  const computedBoxModel = useComputedBoxModel(selected);
+  const computedLayoutStructure = useComputedLayoutStructure(selected);
+  const palette = useMemo(
+    () => palettes.find((item) => item.id === portfolio?.paletteId) || palettes[0],
+    [portfolio?.paletteId],
+  );
+  const swatches = useMemo(() => paletteSwatches(palette), [palette]);
   if (!portfolio || !selected) {
     return (
       <Stack
@@ -166,7 +185,6 @@ export function PropertiesPanel() {
     "sectionId" in selected
       ? portfolio.sections.find((item) => item.id === selected.sectionId)
       : undefined;
-  const palette = palettes.find((item) => item.id === portfolio.paletteId)!;
   const template = templates.find((item) => item.id === portfolio.templateId)!;
   const templateFontFamily =
     template.id === "minimalist"
@@ -239,8 +257,8 @@ export function PropertiesPanel() {
                 label="Internal Section Label"
                 value={section.label}
                 limit={16}
-                onChange={(event) =>
-                  store.updateSection(section.id, { label: event.target.value })
+                onChange={(value) =>
+                  store.updateSection(section.id, { label: value })
                 }
               />
               {section.type === "header" && (
@@ -343,12 +361,12 @@ export function PropertiesPanel() {
                   <InputField
                     label="Layer name"
                     value={selectedCustomLayer.name}
-                    onChange={(event) =>
+                    onChange={(value) =>
                       store.updateCustomLayer(
                         section.id,
                         selectedCustomLayer.id,
                         {
-                          name: event.target.value,
+                          name: value,
                         },
                       )
                     }
@@ -595,7 +613,7 @@ export function PropertiesPanel() {
                   label="Background color"
                   value={section.settings.backgroundColor || ""}
                   fallback={palette.background}
-                  swatches={paletteSwatches(palette)}
+                  swatches={swatches}
                   onChange={(value) =>
                     store.updateSection(section.id, {
                       settings: { ...section.settings, backgroundColor: value },
@@ -606,7 +624,7 @@ export function PropertiesPanel() {
                   label="Text color"
                   value={section.settings.textColor || ""}
                   fallback={palette.text}
-                  swatches={paletteSwatches(palette)}
+                  swatches={swatches}
                   onChange={(value) =>
                     store.updateSection(section.id, {
                       settings: { ...section.settings, textColor: value },
@@ -639,7 +657,7 @@ export function PropertiesPanel() {
                   label="Border Color"
                   value={section.settings.borderColor || ""}
                   fallback={palette.border}
-                  swatches={paletteSwatches(palette)}
+                  swatches={swatches}
                   onChange={(value) =>
                     store.updateSection(section.id, {
                       settings: { ...section.settings, borderColor: value },
@@ -696,7 +714,7 @@ export function PropertiesPanel() {
                 selected={selected}
                 settings={elementSettings || {}}
                 fallbackColor={section.settings.textColor || palette.text}
-                swatches={paletteSwatches(palette)}
+                swatches={swatches}
                 computedBoxModel={computedBoxModel}
                 defaultFontFamily={templateFontFamily}
                 includeText
@@ -719,7 +737,7 @@ export function PropertiesPanel() {
                 selected={selected}
                 settings={elementSettings || {}}
                 fallbackColor={section.settings.textColor || palette.text}
-                swatches={paletteSwatches(palette)}
+                swatches={swatches}
                 computedBoxModel={computedBoxModel}
                 defaultFontFamily={templateFontFamily}
                 includeSize={!getNestedImageTarget(selected)}
@@ -740,7 +758,7 @@ export function PropertiesPanel() {
                 selected={selected}
                 settings={elementSettings || {}}
                 fallbackColor={section.settings.textColor || palette.text}
-                swatches={paletteSwatches(palette)}
+                swatches={swatches}
                 computedBoxModel={computedBoxModel}
                 includeSize={false}
                 onChange={updateSelectedElement}
@@ -754,7 +772,7 @@ export function PropertiesPanel() {
                 selected={selected}
                 settings={elementSettings || {}}
                 fallbackColor={section.settings.textColor || palette.text}
-                swatches={paletteSwatches(palette)}
+                swatches={swatches}
                 computedBoxModel={computedBoxModel}
                 onChange={updateSelectedElement}
               />
@@ -767,7 +785,7 @@ export function PropertiesPanel() {
                 selected={selected}
                 settings={elementSettings || {}}
                 fallbackColor={section.settings.textColor || palette.text}
-                swatches={paletteSwatches(palette)}
+                swatches={swatches}
                 computedBoxModel={computedBoxModel}
                 onChange={updateSelectedElement}
               />
@@ -780,7 +798,7 @@ export function PropertiesPanel() {
                 selected={selected}
                 settings={elementSettings || {}}
                 fallbackColor={section.settings.textColor || palette.text}
-                swatches={paletteSwatches(palette)}
+                swatches={swatches}
                 computedBoxModel={computedBoxModel}
                 onChange={updateSelectedElement}
               />
