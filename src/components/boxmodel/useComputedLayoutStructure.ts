@@ -19,23 +19,25 @@ export type ComputedLayoutStructure = {
 
 export function useComputedLayoutStructure(
   selected: SelectedElement | null | undefined,
-  renderState: unknown,
 ) {
   const [layout, setLayout] = useState<ComputedLayoutStructure>();
+  const sectionId =
+    selected && "sectionId" in selected ? selected.sectionId : undefined;
+  const selectionKey =
+    selected && selected.kind !== "head" && selected.kind !== "body"
+      ? selectedElementKey(selected)
+      : undefined;
 
   useEffect(() => {
-    if (!selected || selected.kind === "head" || selected.kind === "body") {
+    if (!sectionId || !selectionKey) {
       setLayout(undefined);
       return;
     }
 
-    const selectionKey = selectedElementKey(selected);
+    const viewport = document.querySelector<HTMLElement>(".canvas-viewport");
+    const targetSelector = `[data-editor-section-id="${CSS.escape(sectionId)}"][data-editor-selection-key="${CSS.escape(selectionKey)}"]`;
     const targets = Array.from(
-      document.querySelectorAll<HTMLElement>("[data-editor-selection-key]"),
-    ).filter(
-      (element) =>
-        element.dataset.editorSectionId === selected.sectionId &&
-        element.dataset.editorSelectionKey === selectionKey,
+      viewport?.querySelectorAll<HTMLElement>(targetSelector) || [],
     );
     const target =
       targets.find((element) => element.getClientRects().length > 0) ||
@@ -74,11 +76,7 @@ export function useComputedLayoutStructure(
         childTags: children.slice(0, 8).map((child) => child.tagName.toLowerCase()),
       };
 
-      setLayout((current) =>
-        current && JSON.stringify(current) === JSON.stringify(next)
-          ? current
-          : next,
-      );
+      setLayout((current) => sameLayout(current, next) ? current : next);
     };
 
     measure();
@@ -97,9 +95,31 @@ export function useComputedLayoutStructure(
       mutationObserver.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [selected, renderState]);
+  }, [sectionId, selectionKey]);
 
   return layout;
+}
+
+function sameLayout(
+  current: ComputedLayoutStructure | undefined,
+  next: ComputedLayoutStructure,
+) {
+  if (!current) return false;
+  return (
+    current.type === next.type &&
+    current.direction === next.direction &&
+    current.columns === next.columns &&
+    current.rows === next.rows &&
+    current.gap === next.gap &&
+    current.rowGap === next.rowGap &&
+    current.columnGap === next.columnGap &&
+    current.wrap === next.wrap &&
+    current.alignItems === next.alignItems &&
+    current.justifyContent === next.justifyContent &&
+    current.childCount === next.childCount &&
+    current.childTags.length === next.childTags.length &&
+    current.childTags.every((tag, index) => tag === next.childTags[index])
+  );
 }
 
 function countCssTracks(value: string) {

@@ -1,4 +1,5 @@
 import { Box, ColorPicker, Field, HStack, Portal, parseColor } from "@chakra-ui/react";
+import { useEffect, useState } from "react";
 
 export function ColorInput({
   label,
@@ -14,10 +15,28 @@ export function ColorInput({
   onChange: (value: string) => void;
 }) {
   const current = normalizeColor(value || fallback);
+  const [draft, setDraft] = useState(current);
+
+  useEffect(() => setDraft(current), [current]);
+
+  const commit = (next: string) => {
+    const normalized = normalizeColor(next);
+    setDraft(normalized);
+    if (normalized !== current) onChange(normalized);
+  };
+
   return (
     <Field.Root>
       <Field.Label>{label}</Field.Label>
-      <ColorPicker.Root defaultValue={parseColor(current)}>
+      <ColorPicker.Root
+        value={parseColor(draft)}
+        onValueChange={(details) =>
+          setDraft(normalizeColor(details.value.toString("hex")))
+        }
+        onValueChangeEnd={(details) =>
+          commit(details.value.toString("hex"))
+        }
+      >
         <ColorPicker.HiddenInput />
         <ColorPicker.Control>
           <ColorPicker.Input />
@@ -47,7 +66,7 @@ export function ColorInput({
                 borderWidth="3px"
                 borderColor={normalized === current ? "blue.500" : "transparent"}
                 bg={color}
-                onClick={() => onChange(normalized)}
+                onClick={() => commit(normalized)}
               />
             );
           })}

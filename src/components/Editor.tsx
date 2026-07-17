@@ -1,6 +1,7 @@
 import { DragEndEvent } from "@dnd-kit/core";
 import { Box } from "@chakra-ui/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { useEditorStore } from "../store/editorStore";
 import { SelectedElement } from "../types/portfolio";
 import { PropertiesPanel } from "./PropertiesPanel";
@@ -27,6 +28,17 @@ export function Editor({
     unsaved,
     history,
     currentHistoryLabel,
+  } = useEditorStore(
+    useShallow((state) => ({
+      portfolio: state.portfolio,
+      selected: state.selected,
+      previewMode: state.previewMode,
+      unsaved: state.unsaved,
+      history: state.history,
+      currentHistoryLabel: state.currentHistoryLabel,
+    })),
+  );
+  const {
     setPreviewMode,
     updateSection,
     reorderSections,
@@ -44,13 +56,27 @@ export function Editor({
     redo,
     restoreHistory,
     select,
-  } = useEditorStore();
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [panStart, setPanStart] = useState<
-    | { pointerId: number; x: number; y: number; panX: number; panY: number }
-    | undefined
-  >();
+  } = useEditorStore(
+    useShallow((state) => ({
+      setPreviewMode: state.setPreviewMode,
+      updateSection: state.updateSection,
+      reorderSections: state.reorderSections,
+      duplicateSection: state.duplicateSection,
+      deleteSection: state.deleteSection,
+      addSection: state.addSection,
+      addCollectionItem: state.addCollectionItem,
+      deleteCollectionItem: state.deleteCollectionItem,
+      reorderCollectionItems: state.reorderCollectionItems,
+      addCustomLayer: state.addCustomLayer,
+      deleteCustomLayer: state.deleteCustomLayer,
+      reorderCustomLayers: state.reorderCustomLayers,
+      moveCustomLayerToContainer: state.moveCustomLayerToContainer,
+      undo: state.undo,
+      redo: state.redo,
+      restoreHistory: state.restoreHistory,
+      select: state.select,
+    })),
+  );
   const [expandedLayers, setExpandedLayers] = useState<Record<string, boolean>>(
     {},
   );
@@ -110,61 +136,32 @@ export function Editor({
     };
   }, []);
 
-  if (!portfolio) return null;
-  const sections = [...portfolio.sections].sort((a, b) => a.order - b.order);
-  const movable = sections.filter((section) => !section.locked);
+  const sections = useMemo(
+    () =>
+      portfolio
+        ? [...portfolio.sections].sort((a, b) => a.order - b.order)
+        : [],
+    [portfolio?.sections],
+  );
+  const movable = useMemo(
+    () => sections.filter((section) => !section.locked),
+    [sections],
+  );
   const selectedSectionId =
     selected && "sectionId" in selected ? selected.sectionId : sections[0]?.id;
-  const selectedSection =
-    sections.find((section) => section.id === selectedSectionId) || sections[0];
+  const selectedSection = useMemo(
+    () =>
+      sections.find((section) => section.id === selectedSectionId) || sections[0],
+    [sections, selectedSectionId],
+  );
 
-  const onDragEnd = (event: DragEndEvent) => {
+  const onDragEnd = useCallback((event: DragEndEvent) => {
     if (event.over && event.active.id !== event.over.id) {
       reorderSections(String(event.active.id), String(event.over.id));
     }
-  };
+  }, [reorderSections]);
 
-  const startPan = (event: React.PointerEvent<HTMLElement>) => {
-    const target = event.target as HTMLElement;
-    const isCanvasControl =
-      !!target.closest(".canvas-controls") ||
-      !!target.closest(".selection-floating-bar");
-    const isPortfolio = !!target.closest(".portfolio-site");
-
-    if (!isCanvasControl && !isPortfolio) {
-      select(undefined);
-    }
-
-    if (
-      isCanvasControl ||
-      (isPortfolio && !spacePressed)
-    ) {
-      return;
-    }
-    if (spacePressed) event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setPanStart({
-      pointerId: event.pointerId,
-      x: event.clientX,
-      y: event.clientY,
-      panX: pan.x,
-      panY: pan.y,
-    });
-  };
-
-  const movePan = (event: React.PointerEvent<HTMLElement>) => {
-    if (!panStart || panStart.pointerId !== event.pointerId) return;
-    setPan({
-      x: panStart.panX + event.clientX - panStart.x,
-      y: panStart.panY + event.clientY - panStart.y,
-    });
-  };
-
-  const endPan = (event: React.PointerEvent<HTMLElement>) => {
-    if (panStart?.pointerId === event.pointerId) setPanStart(undefined);
-  };
-
-  const selectAndScroll = (selection: SelectedElement) => {
+  const selectAndScroll = useCallback((selection: SelectedElement) => {
     select(selection);
     window.requestAnimationFrame(() => {
       const sectionId =
@@ -191,7 +188,35 @@ export function Editor({
         behavior: "smooth",
       });
     });
-  };
+  }, [sections, select]);
+
+  const toggleSection = useCallback(
+    (section: (typeof sections)[number]) =>
+      updateSection(section.id, { visible: !section.visible }),
+    [updateSection],
+  );
+  const duplicateSelectedSection = useCallback(
+    (section: (typeof sections)[number]) => duplicateSection(section.id),
+    [duplicateSection],
+  );
+  const deleteSelectedSection = useCallback(
+    (section: (typeof sections)[number]) => deleteSection(section.id),
+    [deleteSection],
+  );
+  const renameSection = useCallback(
+    (section: (typeof sections)[number]) => {
+      const label = window.prompt("Rename section", section.label);
+      if (label?.trim()) updateSection(section.id, { label: label.trim() });
+    },
+    [updateSection],
+  );
+  const toggleSectionLock = useCallback(
+    (section: (typeof sections)[number]) =>
+      updateSection(section.id, { locked: !section.locked }),
+    [updateSection],
+  );
+
+  if (!portfolio) return null;
 
   return (
     <Box
@@ -237,18 +262,11 @@ export function Editor({
             expandedLayers={expandedLayers}
             onBodyExpanded={setBodyExpanded}
             onDragEnd={onDragEnd}
-            onToggleSection={(section) =>
-              updateSection(section.id, { visible: !section.visible })
-            }
-            onDuplicateSection={(section) => duplicateSection(section.id)}
-            onDeleteSection={(section) => deleteSection(section.id)}
-            onRenameSection={(section) => {
-              const label = window.prompt("Rename section", section.label);
-              if (label?.trim()) updateSection(section.id, { label: label.trim() });
-            }}
-            onToggleSectionLock={(section) =>
-              updateSection(section.id, { locked: !section.locked })
-            }
+            onToggleSection={toggleSection}
+            onDuplicateSection={duplicateSelectedSection}
+            onDeleteSection={deleteSelectedSection}
+            onRenameSection={renameSection}
+            onToggleSectionLock={toggleSectionLock}
             onAddSection={addSection}
             onAddCollectionItem={addCollectionItem}
             onAddCustomLayer={(sectionId, type, parentId) => {
@@ -317,16 +335,8 @@ export function Editor({
                   portfolio={portfolio}
                   selected={selected}
                   previewMode={previewMode}
-                  pan={pan}
-                  zoom={zoom}
-                  panning={!!panStart}
                   panReady={spacePressed}
-                  onPanChange={setPan}
-                  onZoomChange={setZoom}
                   onPreviewModeChange={setPreviewMode}
-                  onPointerDown={startPan}
-                  onPointerMove={movePan}
-                  onPointerUp={endPan}
                   onSelect={select}
                 />
               )}

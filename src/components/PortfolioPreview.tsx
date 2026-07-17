@@ -25,26 +25,37 @@ interface Props {
   editable?: boolean;
 }
 
-export function PortfolioPreview({
+export const PortfolioPreview = React.memo(function PortfolioPreview({
   portfolio,
   selected,
   onSelect,
   editable = false,
 }: Props) {
-  const palette = palettes.find((item) => item.id === portfolio.paletteId)!;
-  const sorted = [...portfolio.sections]
-    .sort((a, b) => a.order - b.order)
-    .filter((section) => section.visible);
-  const style = {
-    "--primary": palette.primary,
-    "--secondary": palette.secondary,
-    "--accent": palette.accent,
-    "--bg": palette.background,
-    "--surface": palette.surface,
-    "--text": palette.text,
-    "--muted": palette.muted,
-    "--border": palette.border,
-  } as React.CSSProperties;
+  const palette = React.useMemo(
+    () => palettes.find((item) => item.id === portfolio.paletteId)!,
+    [portfolio.paletteId],
+  );
+  const sorted = React.useMemo(
+    () =>
+      [...portfolio.sections]
+        .sort((a, b) => a.order - b.order)
+        .filter((section) => section.visible),
+    [portfolio.sections],
+  );
+  const style = React.useMemo(
+    () =>
+      ({
+        "--primary": palette.primary,
+        "--secondary": palette.secondary,
+        "--accent": palette.accent,
+        "--bg": palette.background,
+        "--surface": palette.surface,
+        "--text": palette.text,
+        "--muted": palette.muted,
+        "--border": palette.border,
+      }) as React.CSSProperties,
+    [palette],
+  );
 
   return (
     <article
@@ -63,27 +74,74 @@ export function PortfolioPreview({
           editable,
         };
         if (section.type === "header")
-          return <HeaderSection key={section.id} {...props} />;
+          return <MemoHeaderSection key={section.id} {...props} />;
         if (section.type === "hero")
-          return <HeroSection key={section.id} {...props} />;
+          return <MemoHeroSection key={section.id} {...props} />;
         if (section.type === "projects")
-          return <ProjectsSection key={section.id} {...props} />;
+          return <MemoProjectsSection key={section.id} {...props} />;
         if (section.type === "certifications")
-          return <CertificationsSection key={section.id} {...props} />;
+          return <MemoCertificationsSection key={section.id} {...props} />;
         if (section.type === "services")
-          return <ServicesSection key={section.id} {...props} />;
+          return <MemoServicesSection key={section.id} {...props} />;
         if (section.type === "about")
-          return <AboutSection key={section.id} {...props} />;
-        return <FooterSection key={section.id} {...props} />;
+          return <MemoAboutSection key={section.id} {...props} />;
+        return <MemoFooterSection key={section.id} {...props} />;
       })}
     </article>
   );
-}
+});
 
 type SectionProps = Props & {
   section: Portfolio["sections"][number];
   isSelected: boolean;
 };
+
+const MemoHeaderSection = React.memo(HeaderSection, sameSectionProps);
+const MemoHeroSection = React.memo(HeroSection, sameSectionProps);
+const MemoProjectsSection = React.memo(ProjectsSection, sameSectionProps);
+const MemoCertificationsSection = React.memo(
+  CertificationsSection,
+  sameSectionProps,
+);
+const MemoServicesSection = React.memo(ServicesSection, sameSectionProps);
+const MemoAboutSection = React.memo(AboutSection, sameSectionProps);
+const MemoFooterSection = React.memo(FooterSection, sameSectionProps);
+
+function sameSectionProps(previous: SectionProps, next: SectionProps) {
+  if (
+    previous.section !== next.section ||
+    previous.isSelected !== next.isSelected ||
+    previous.editable !== next.editable ||
+    previous.onSelect !== next.onSelect ||
+    previous.portfolio.owner !== next.portfolio.owner
+  ) {
+    return false;
+  }
+  if (
+    previous.section.type === "header" &&
+    previous.portfolio.sections !== next.portfolio.sections
+  ) {
+    return false;
+  }
+  const previousSelectedHere = selectionBelongsToSection(
+    previous.selected,
+    previous.section.id,
+  );
+  const nextSelectedHere = selectionBelongsToSection(
+    next.selected,
+    next.section.id,
+  );
+  return (
+    !previousSelectedHere && !nextSelectedHere
+  ) || previous.selected === next.selected;
+}
+
+function selectionBelongsToSection(
+  selected: SelectedElement | undefined,
+  sectionId: string,
+) {
+  return !!selected && "sectionId" in selected && selected.sectionId === sectionId;
+}
 
 function selectable(
   section: Portfolio["sections"][number],
@@ -112,23 +170,32 @@ function editorTarget(sectionId: string, key: string) {
   };
 }
 
+const sectionSpacing = {
+  small: "34px",
+  medium: "58px",
+  large: "92px",
+} as const;
+
+const sectionContentWidths = {
+  narrow: "760px",
+  standard: "1000px",
+  wide: "1220px",
+} as const;
+
+const sectionStyleCache = new WeakMap<
+  Portfolio["sections"][number],
+  React.CSSProperties
+>();
+
 function sectionStyle(section: Portfolio["sections"][number]) {
-  const spacing = {
-    small: "34px",
-    medium: "58px",
-    large: "92px",
-  };
-  const contentWidths = {
-    narrow: "760px",
-    standard: "1000px",
-    wide: "1220px",
-  };
+  const cached = sectionStyleCache.get(section);
+  if (cached) return cached;
   const layout = section.settings.layoutMode
     ? resolveSectionLayoutSettings(section)
     : undefined;
   const style: React.CSSProperties & Record<string, string | undefined> = {
     "--section-content-width":
-      contentWidths[section.settings.contentWidth || "standard"],
+      sectionContentWidths[section.settings.contentWidth || "standard"],
     backgroundColor: section.settings.backgroundColor,
     color: section.settings.textColor,
     textAlign: section.settings.alignment,
@@ -154,7 +221,7 @@ function sectionStyle(section: Portfolio["sections"][number]) {
         : section.settings.paddingTop !== undefined
           ? `${section.settings.paddingTop}px`
           : section.settings.spacing
-            ? spacing[section.settings.spacing]
+            ? sectionSpacing[section.settings.spacing]
             : undefined,
     paddingRight:
       section.settings.padding?.right !== undefined
@@ -168,7 +235,7 @@ function sectionStyle(section: Portfolio["sections"][number]) {
         : section.settings.paddingBottom !== undefined
           ? `${section.settings.paddingBottom}px`
           : section.settings.spacing
-            ? spacing[section.settings.spacing]
+            ? sectionSpacing[section.settings.spacing]
             : undefined,
     paddingLeft:
       section.settings.padding?.left !== undefined
@@ -236,6 +303,7 @@ function sectionStyle(section: Portfolio["sections"][number]) {
   if (section.settings.accentColor) {
     style["--accent"] = section.settings.accentColor;
   }
+  sectionStyleCache.set(section, style);
   return style;
 }
 
@@ -410,7 +478,7 @@ function HeroSection({
         style={toElementStyle(getElementSettings(section, "layer:hero-content"))}
       >
         <EditableText
-          sectionId={section.id}
+          section={section}
           field="eyebrow"
           label="Hero Eyebrow"
           limit={80}
@@ -420,7 +488,7 @@ function HeroSection({
           className="eyebrow"
         />
         <EditableText
-          sectionId={section.id}
+          section={section}
           field="headline"
           label="Hero Headline"
           limit={120}
@@ -430,7 +498,7 @@ function HeroSection({
           as="h1"
         />
         <EditableText
-          sectionId={section.id}
+          section={section}
           field="description"
           label="Hero Description"
           limit={250}
@@ -922,7 +990,7 @@ function AboutSection({
           titleLimit={80}
         />
         <EditableText
-          sectionId={section.id}
+          section={section}
           field="description"
           label="About Description"
           limit={1000}
@@ -1235,7 +1303,7 @@ function SectionHeading({
       }}
     >
       <EditableText
-        sectionId={section.id}
+        section={section}
         field="title"
         label={`${section.label} Title`}
         limit={titleLimit}
@@ -1246,7 +1314,7 @@ function SectionHeading({
       />
       {section.content.subtitle !== undefined && (
         <EditableText
-          sectionId={section.id}
+          section={section}
           field="subtitle"
           label={`${section.label} Subtitle`}
           limit={250}
@@ -1261,7 +1329,7 @@ function SectionHeading({
 }
 
 function EditableText({
-  sectionId,
+  section,
   field,
   label,
   limit,
@@ -1271,7 +1339,7 @@ function EditableText({
   as = "span",
   className = "",
 }: {
-  sectionId: string;
+  section: Portfolio["sections"][number];
   field: string;
   label: string;
   limit: number;
@@ -1281,6 +1349,7 @@ function EditableText({
   as?: keyof JSX.IntrinsicElements;
   className?: string;
 }) {
+  const sectionId = section.id;
   const Tag = as;
   const active =
     selected?.kind === "text" &&
@@ -1289,12 +1358,7 @@ function EditableText({
   const updateSectionContent = useEditorStore(
     (state) => state.updateSectionContent,
   );
-  const section = useEditorStore((state) =>
-    state.portfolio?.sections.find((item) => item.id === sectionId),
-  );
-  const style = section
-    ? toElementStyle(getElementSettings(section, `text:${field}`))
-    : undefined;
+  const style = toElementStyle(getElementSettings(section, `text:${field}`));
   return (
     <Tag
       {...editorTarget(sectionId, `text:${field}`)}

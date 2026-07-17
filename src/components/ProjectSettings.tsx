@@ -25,12 +25,16 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { palettes, templates } from "../data/templates";
 import { getProjectAnalytics } from "../lib/projects";
 import { uploadImageToSupabase } from "../lib/uploadImage";
 import { ImageAsset, Portfolio } from "../types/portfolio";
 import { JsonModal } from "./editor/JsonModal";
-import { AnalyticsChart } from "./settings/AnalyticsChart";
+
+const AnalyticsChart = dynamic(() =>
+  import("./settings/AnalyticsChart").then((module) => module.AnalyticsChart),
+);
 
 type UtmForm = {
   source: string;

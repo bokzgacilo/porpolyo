@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { produce, type Draft } from "immer";
 import { nanoid } from "nanoid";
 import {
   CertificationItem,
@@ -65,31 +66,31 @@ interface EditorState {
   markSaved: (portfolio: Portfolio) => void;
 }
 
-const clone = (portfolio: Portfolio) => structuredClone(portfolio);
-
 function historyEntry(portfolio: Portfolio, label: string): EditorHistoryEntry {
-  return { id: nanoid(), label, portfolio: clone(portfolio) };
+  return { id: nanoid(), label, portfolio };
 }
 
 function mutatePortfolio(
   state: EditorState,
   label: string,
-  updater: (portfolio: Portfolio) => void,
+  updater: (portfolio: Draft<Portfolio>) => void,
   editGroup?: string,
 ): Partial<EditorState> {
   if (!state.portfolio) return {};
-  const next = clone(state.portfolio);
+  const previous = state.portfolio;
   const continuesCurrentEdit =
     !!editGroup && state.activeEditGroup === editGroup;
-  updater(next);
-  next.updatedAt = new Date().toISOString();
+  const next = produce(previous, (draft) => {
+    updater(draft);
+    draft.updatedAt = new Date().toISOString();
+  });
   return {
     portfolio: next,
     history: continuesCurrentEdit
       ? state.history
       : [
           ...state.history,
-          historyEntry(state.portfolio, state.currentHistoryLabel),
+          historyEntry(previous, state.currentHistoryLabel),
         ].slice(-5),
     future: continuesCurrentEdit ? state.future : [],
     currentHistoryLabel: label,
@@ -468,7 +469,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       const previous = state.history.at(-1);
       if (!previous || !state.portfolio) return {};
       return {
-        portfolio: clone(previous.portfolio),
+        portfolio: previous.portfolio,
         selected: selectionForPortfolio(state.selected, previous.portfolio),
         history: state.history.slice(0, -1),
         future: [
@@ -485,7 +486,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       const next = state.future[0];
       if (!next || !state.portfolio) return {};
       return {
-        portfolio: clone(next.portfolio),
+        portfolio: next.portfolio,
         selected: selectionForPortfolio(state.selected, next.portfolio),
         history: [
           ...state.history,
@@ -513,7 +514,7 @@ export const useEditorStore = create<EditorState>((set) => ({
       ].slice(0, 5);
 
       return {
-        portfolio: clone(target.portfolio),
+        portfolio: target.portfolio,
         selected: selectionForPortfolio(state.selected, target.portfolio),
         history: state.history.slice(0, targetIndex),
         future,

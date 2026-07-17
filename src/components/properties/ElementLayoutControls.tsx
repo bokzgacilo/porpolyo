@@ -8,6 +8,7 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
+import { useEffect, useState } from "react";
 import {
   stackAlignOptions,
   stackDirectionOptions,
@@ -147,6 +148,22 @@ function NumberField({
   max: number;
   onChange: (value: number) => void;
 }) {
+  const externalValue = String(value);
+  const [draft, setDraft] = useState(externalValue);
+
+  useEffect(() => setDraft(externalValue), [externalValue]);
+
+  const commit = () => {
+    const parsed = Number(draft);
+    if (!Number.isFinite(parsed)) {
+      setDraft(externalValue);
+      return;
+    }
+    const next = Math.min(Math.max(parsed, min), max);
+    if (next !== value) onChange(next);
+    setDraft(String(next));
+  };
+
   return (
     <Field.Root>
       <Field.Label>
@@ -160,15 +177,16 @@ function NumberField({
         size="xs"
         min={min}
         max={max}
-        value={value.toString()}
-        onValueChange={(details) => {
-          if (Number.isNaN(details.valueAsNumber)) return;
-
-          onChange(Math.min(Math.max(details.valueAsNumber, min), max));
-        }}
+        value={draft}
+        onValueChange={(details) => setDraft(details.value)}
       >
         <NumberInput.Control />
-        <NumberInput.Input />
+        <NumberInput.Input
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+        />
       </NumberInput.Root>
     </Field.Root>
   );

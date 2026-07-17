@@ -12,6 +12,11 @@ export function BoxShadowInput({ value, onChange }: {
   value?: string;
   onChange: (value: string | undefined) => void;
 }) {
+  const externalValue = value || "";
+  const [draft, setDraft] = useState(externalValue);
+
+  useEffect(() => setDraft(externalValue), [externalValue]);
+
   const presetValue = shadowPresets.some((preset) => preset.value === (value || ""))
     ? value || ""
     : "__custom__";
@@ -28,11 +33,15 @@ export function BoxShadowInput({ value, onChange }: {
       <label className="field">
         <span>Custom shadow</span>
         <input
-          value={value || ""}
+          value={draft}
           placeholder="0 12px 30px rgba(15, 23, 42, 0.16)"
-          onChange={(event) => onChange(event.target.value || undefined)}
+          onChange={(event) => setDraft(event.target.value)}
+          onBlur={() => {
+            if (draft !== externalValue) onChange(draft || undefined);
+          }}
         />
       </label>
     </>
   );
 }
+import { useEffect, useState } from "react";

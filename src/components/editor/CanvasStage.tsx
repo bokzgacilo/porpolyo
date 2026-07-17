@@ -36,36 +36,32 @@ export function CanvasStage({
   portfolio,
   selected,
   previewMode,
-  pan,
-  zoom,
-  panning,
   panReady,
-  onPanChange,
-  onZoomChange,
   onPreviewModeChange,
-  onPointerDown,
-  onPointerMove,
-  onPointerUp,
   onSelect,
 }: {
   portfolio: Portfolio;
   selected?: SelectedElement;
   previewMode: PreviewMode;
-  pan: { x: number; y: number };
-  zoom: number;
-  panning: boolean;
   panReady: boolean;
-  onPanChange: (pan: { x: number; y: number }) => void;
-  onZoomChange: (zoom: number) => void;
   onPreviewModeChange: (mode: PreviewMode) => void;
-  onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
-  onPointerMove: (event: React.PointerEvent<HTMLElement>) => void;
-  onPointerUp: (event: React.PointerEvent<HTMLElement>) => void;
-  onSelect: (selection: SelectedElement) => void;
+  onSelect: (selection?: SelectedElement) => void;
 }) {
   const stageRef = useRef<HTMLElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const panRef = useRef({ x: 0, y: 0 });
+  const panStartRef = useRef<
+    | { pointerId: number; x: number; y: number; panX: number; panY: number }
+    | undefined
+  >();
+  const zoomRef = useRef(1);
+  const [zoom, setZoom] = useState(1);
   const [htmlSelector, setHtmlSelector] = useState("—");
+  const selectedDomIdentity = selected
+    ? "sectionId" in selected
+      ? `${selected.sectionId}:${selectedElementKey(selected)}`
+      : selected.kind
+    : "none";
   const showBoxModelOverlay =
     portfolio.settings.editor?.showBoxModelOverlay ?? true;
 
@@ -77,7 +73,60 @@ export function CanvasStage({
     });
 
     return () => window.cancelAnimationFrame(frame);
-  }, [portfolio, previewMode, selected]);
+  }, [previewMode, selectedDomIdentity]);
+
+  const applyViewportTransform = () => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    viewport.style.setProperty("--canvas-pan-x", `${panRef.current.x}px`);
+    viewport.style.setProperty("--canvas-pan-y", `${panRef.current.y}px`);
+    viewport.style.setProperty("--canvas-zoom", String(zoomRef.current));
+  };
+
+  const updateZoom = (nextZoom: number) => {
+    zoomRef.current = nextZoom;
+    applyViewportTransform();
+    setZoom(nextZoom);
+  };
+
+  const startPan = (event: React.PointerEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+    const isCanvasControl = !!target.closest('[data-canvas-control="true"]');
+    const isPortfolio = !!target.closest(".portfolio-site");
+
+    if (!isCanvasControl && !isPortfolio) onSelect(undefined);
+    if (isCanvasControl || (isPortfolio && !panReady)) return;
+
+    if (panReady) event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.currentTarget.classList.add("panning");
+    panStartRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      panX: panRef.current.x,
+      panY: panRef.current.y,
+    };
+  };
+
+  const movePan = (event: React.PointerEvent<HTMLElement>) => {
+    const start = panStartRef.current;
+    if (!start || start.pointerId !== event.pointerId) return;
+    panRef.current = {
+      x: start.panX + event.clientX - start.x,
+      y: start.panY + event.clientY - start.y,
+    };
+    applyViewportTransform();
+  };
+
+  const endPan = (event: React.PointerEvent<HTMLElement>) => {
+    if (panStartRef.current?.pointerId !== event.pointerId) return;
+    panStartRef.current = undefined;
+    event.currentTarget.classList.remove("panning");
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
 
   const resetToCenter = () => {
     const stage = stageRef.current;
@@ -96,8 +145,8 @@ export function CanvasStage({
     );
 
     viewport.style.setProperty("transition", "none");
-    onPanChange({ x: 0, y: 0 });
-    onZoomChange(Number(fittedZoom.toFixed(2)));
+    panRef.current = { x: 0, y: 0 };
+    updateZoom(Number(fittedZoom.toFixed(2)));
 
     window.requestAnimationFrame(() => {
       window.requestAnimationFrame(() => {
@@ -119,11 +168,12 @@ export function CanvasStage({
     <Box
       as="section"
       ref={stageRef}
-      className={`canvas-stage ${previewMode} ${panReady ? "pan-ready" : ""} ${panning ? "panning" : ""}`}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
+      className={`canvas-stage ${previewMode} ${panReady ? "pan-ready" : ""}`}
+      onPointerDown={startPan}
+      onPointerMove={movePan}
+      onPointerUp={endPan}
+      onPointerCancel={endPan}
+      onLostPointerCapture={endPan}
     >
       <ActionBar.Root open={true}>
         <Portal>
@@ -178,7 +228,7 @@ export function CanvasStage({
                         return;
                       }
                       if (event.target.value !== "custom") {
-                        onZoomChange(Number(event.target.value));
+                        updateZoom(Number(event.target.value));
                       }
                     }}
                   >
@@ -211,17 +261,11 @@ export function CanvasStage({
       <Box
         ref={viewportRef}
         className="canvas-viewport"
-        style={{
-          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-          transformOrigin: "top center",
-        }}
       >
         <BoxModelOverlay
-          portfolio={portfolio}
           selected={selected}
           viewportRef={viewportRef}
           zoom={zoom}
-          pan={pan}
           previewMode={previewMode}
           showBoxModel={showBoxModelOverlay}
         />
@@ -237,27 +281,29 @@ export function CanvasStage({
 }
 
 function BoxModelOverlay({
-  portfolio,
   selected,
   viewportRef,
   zoom,
-  pan,
   previewMode,
   showBoxModel,
 }: {
-  portfolio: Portfolio;
   selected?: SelectedElement;
   viewportRef: React.RefObject<HTMLDivElement | null>;
   zoom: number;
-  pan: { x: number; y: number };
   previewMode: PreviewMode;
   showBoxModel: boolean;
 }) {
   const [rects, setRects] = useState<BoxModelRects>();
+  const sectionId =
+    selected && "sectionId" in selected ? selected.sectionId : undefined;
+  const selectionKey =
+    selected && selected.kind !== "head" && selected.kind !== "body"
+      ? selectedElementKey(selected)
+      : undefined;
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
-    if (!viewport || !selected || !("sectionId" in selected)) {
+    if (!viewport || !selected || !sectionId || !selectionKey) {
       setRects(undefined);
       return;
     }
@@ -273,15 +319,21 @@ function BoxModelOverlay({
     update();
 
     const resizeObserver = new ResizeObserver(update);
+    const mutationObserver = new MutationObserver(update);
     resizeObserver.observe(target);
     resizeObserver.observe(viewport);
+    mutationObserver.observe(target, {
+      attributes: true,
+      attributeFilter: ["class", "style"],
+    });
     window.addEventListener("resize", update);
 
     return () => {
       resizeObserver.disconnect();
+      mutationObserver.disconnect();
       window.removeEventListener("resize", update);
     };
-  }, [pan.x, pan.y, portfolio, previewMode, selected, viewportRef, zoom]);
+  }, [previewMode, sectionId, selectionKey, viewportRef, zoom]);
 
   if (!rects) return null;
 
@@ -310,12 +362,9 @@ function BoxModelOverlay({
 function findSelectedTarget(viewport: HTMLElement, selected: SelectedElement) {
   if (!("sectionId" in selected)) return undefined;
   const key = selectedElementKey(selected);
+  const targetSelector = `[data-editor-section-id="${CSS.escape(selected.sectionId)}"][data-editor-selection-key="${CSS.escape(key)}"]`;
   const matchingTargets = Array.from(
-    viewport.querySelectorAll<HTMLElement>("[data-editor-selection-key]"),
-  ).filter(
-    (element) =>
-      element.dataset.editorSectionId === selected.sectionId &&
-      element.dataset.editorSelectionKey === key,
+    viewport.querySelectorAll<HTMLElement>(targetSelector),
   );
 
   return (

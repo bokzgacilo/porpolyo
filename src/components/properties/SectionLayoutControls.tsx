@@ -7,6 +7,7 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
+import { useEffect, useState } from "react";
 import {
   getSectionLayoutDefaults,
   resolveSectionLayoutSettings,
@@ -159,6 +160,17 @@ function NumberField({
   suffix?: string;
   onChange: (value: number) => void;
 }) {
+  const externalValue = String(value);
+  const [draft, setDraft] = useState(externalValue);
+
+  useEffect(() => setDraft(externalValue), [externalValue]);
+
+  const commit = () => {
+    const next = clampNumber(Number(draft), min, max);
+    if (next !== value) onChange(next);
+    setDraft(String(next));
+  };
+
   return (
     <Field.Root>
       <Field.Label>
@@ -168,10 +180,12 @@ function NumberField({
         type="number"
         min={min}
         max={max}
-        value={value}
-        onChange={(event) =>
-          onChange(clampNumber(Number(event.currentTarget.value), min, max))
-        }
+        value={draft}
+        onChange={(event) => setDraft(event.currentTarget.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.currentTarget.blur();
+        }}
       />
     </Field.Root>
   );
