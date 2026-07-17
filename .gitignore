@@ -1,0 +1,91 @@
+# Dependencies
+node_modules/
+
+# Next.js and production output
+.next/
+out/
+dist/
+build/
+next-env.d.ts
+
+# Environment variables and local configuration
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+.npmrc
+!.npmrc.example
+
+# Credentials, secrets, and private keys
+credentials*.json
+service-account*.json
+secrets*.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.ppk
+*.jks
+*.keystore
+id_rsa*
+id_ed25519*
+!*.example.json
+!*.example.pem
+
+# Local databases and user uploads
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+public/uploads/*
+!public/uploads/.gitkeep
+
+# Test and coverage output
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+storybook-static/
+
+# Caches and generated metadata
+*.tsbuildinfo
+.turbo/
+.cache/
+.parcel-cache/
+.vite/
+.eslintcache
+.stylelintcache
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Hosting and local service state
+.vercel/
+.netlify/
+.supabase/
+
+# Local AI-tool settings
+.claude/settings.local.json
+.codex/
+
+# IDE and operating-system files
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.example.json
+.DS_Store
+Thumbs.db
+Desktop.ini
