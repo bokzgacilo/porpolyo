@@ -16,6 +16,23 @@ type ProjectRow = {
   updated_at: string;
 };
 
+export class ProjectUsernameTakenError extends Error {
+  readonly suggestion: string;
+
+  constructor(username: string, suggestion: string) {
+    super(`The portfolio username "${username}" is already taken. Try "${suggestion}" or choose a different username.`);
+    this.name = "ProjectUsernameTakenError";
+    this.suggestion = suggestion;
+  }
+}
+
+function isUsernameConflict(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const details = error as { code?: string; message?: string; details?: string };
+  const description = `${details.message || ""} ${details.details || ""}`;
+  return details.code === "23505" && description.includes("projects_username_unique");
+}
+
 const projectColumns = [
   "id",
   "title",
@@ -123,7 +140,16 @@ export async function saveProject(portfolio: Portfolio, ownerId: string): Promis
     .select(projectColumns)
     .single();
 
-  if (error) throw error;
+  if (error) {
+    if (isUsernameConflict(error)) {
+      const suffix = portfolio.id.toLowerCase().replace(/[^a-z0-9]/g, "").slice(-5) || "new";
+      throw new ProjectUsernameTakenError(
+        portfolio.owner.username,
+        `${portfolio.owner.username}-${suffix}`,
+      );
+    }
+    throw error;
+  }
   return toPortfolio(data as unknown as ProjectRow);
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { ChakraProvider, defaultSystem } from "@chakra-ui/react";
-import { ThemeProvider } from '@teispace/next-themes';
+import { ThemeProvider } from "next-themes";
 
 export function Provider({ children }: { children: React.ReactNode }) {
   return (

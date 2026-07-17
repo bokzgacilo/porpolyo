@@ -1,4 +1,9 @@
-import { Field, NumberInput as ChakraNumberInput } from "@chakra-ui/react";
+import {
+  Field,
+  NumberInputControl,
+  NumberInputInput,
+  NumberInputRoot,
+} from "@chakra-ui/react";
 
 type NumberInputProps = {
   label: string;
@@ -11,7 +16,7 @@ export function NumberInput({ label, value, onChange }: NumberInputProps) {
     <Field.Root>
       <Field.Label>{label}</Field.Label>
 
-      <ChakraNumberInput.Root
+      <NumberInputRoot
         w="full"
         size="xs"
         value={value?.toString() ?? ""}
@@ -19,9 +24,9 @@ export function NumberInput({ label, value, onChange }: NumberInputProps) {
           onChange(details.value === "" ? undefined : details.valueAsNumber);
         }}
       >
-        <ChakraNumberInput.Control />
-        <ChakraNumberInput.Input />
-      </ChakraNumberInput.Root>
+        <NumberInputControl />
+        <NumberInputInput />
+      </NumberInputRoot>
     </Field.Root>
   );
 }

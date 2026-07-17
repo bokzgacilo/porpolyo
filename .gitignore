@@ -89,3 +89,6 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Audit reports (local only)
+/audits/

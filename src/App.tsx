@@ -201,15 +201,21 @@ export function App() {
   if (route === "onboarding") {
     return (
       <Onboarding
-        onBack={() => navigate("landing", "/")}
+        onBack={() => navigate("dashboard", "/dashboard")}
         onBuild={async (templateId, paletteId, owner) => {
-          const portfolio = createDefaultPortfolio(
+          if (!auth.user) throw new Error("Please sign in before creating a project.");
+          const newPortfolio = createDefaultPortfolio(
             templateId,
             paletteId,
             owner,
           );
-          setPortfolio(portfolio);
-          navigate("editor", `/builder/${portfolio.id}`);
+          const savedPortfolio = await saveProject(newPortfolio, auth.user.id);
+          setPortfolio(savedPortfolio);
+          setPortfolios((current) => [
+            savedPortfolio,
+            ...current.filter((item) => item.id !== savedPortfolio.id),
+          ]);
+          navigate("editor", `/builder/${savedPortfolio.id}`);
         }}
       />
     );
