@@ -4,11 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useEditorStore } from "../store/editorStore";
 import { SelectedElement } from "../types/portfolio";
+import { findCustomLayer } from "../utils/customLayers";
+import { selectedElementKey } from "../utils/elementSettings";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { CanvasStage } from "./editor/CanvasStage";
 import { EditorToolbar } from "./editor/EditorToolbar";
 import { HeadMetadataEditor } from "./editor/HeadMetadataEditor";
 import { StructurePanel } from "./editor/StructurePanel";
+import { isNativeContainerLayerId } from "./editor/layerHelpers";
 
 export function Editor({
   onSave,
@@ -47,15 +50,18 @@ export function Editor({
     addSection,
     addCollectionItem,
     deleteCollectionItem,
+    duplicateCollectionItem,
     reorderCollectionItems,
     addCustomLayer,
     deleteCustomLayer,
+    duplicateCustomLayer,
     reorderCustomLayers,
     moveCustomLayerToContainer,
     undo,
     redo,
     restoreHistory,
     select,
+    updateElementSettings,
   } = useEditorStore(
     useShallow((state) => ({
       setPreviewMode: state.setPreviewMode,
@@ -66,15 +72,18 @@ export function Editor({
       addSection: state.addSection,
       addCollectionItem: state.addCollectionItem,
       deleteCollectionItem: state.deleteCollectionItem,
+      duplicateCollectionItem: state.duplicateCollectionItem,
       reorderCollectionItems: state.reorderCollectionItems,
       addCustomLayer: state.addCustomLayer,
       deleteCustomLayer: state.deleteCustomLayer,
+      duplicateCustomLayer: state.duplicateCustomLayer,
       reorderCustomLayers: state.reorderCustomLayers,
       moveCustomLayerToContainer: state.moveCustomLayerToContainer,
       undo: state.undo,
       redo: state.redo,
       restoreHistory: state.restoreHistory,
       select: state.select,
+      updateElementSettings: state.updateElementSettings,
     })),
   );
   const [expandedLayers, setExpandedLayers] = useState<Record<string, boolean>>(
@@ -115,9 +124,93 @@ export function Editor({
       !!target.closest('input, textarea, select, [contenteditable="true"]');
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.code !== "Space" || isTypingTarget(event.target)) return;
-      event.preventDefault();
-      setSpacePressed(true);
+      if (isTypingTarget(event.target)) return;
+      if (event.code === "Space") {
+        event.preventDefault();
+        setSpacePressed(true);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        select(undefined);
+        return;
+      }
+      if (
+        !event.repeat &&
+        (event.key === "Delete" || event.key === "Backspace") &&
+        selected &&
+        "sectionId" in selected
+      ) {
+        let removed = false;
+        if (selected.kind === "section") {
+          deleteSection(selected.sectionId);
+          removed = true;
+        } else if (
+          selected.kind === "project" ||
+          selected.kind === "certification" ||
+          selected.kind === "service"
+        ) {
+          deleteCollectionItem(selected.sectionId, selected.itemId);
+          removed = true;
+        } else if (
+          selected.kind === "layer" &&
+          selected.layerId.startsWith("custom:")
+        ) {
+          deleteCustomLayer(
+            selected.sectionId,
+            selected.layerId.slice("custom:".length),
+          );
+          removed = true;
+        }
+        if (removed) {
+          event.preventDefault();
+          select(undefined);
+        }
+        return;
+      }
+      if (event.repeat || !(event.metaKey || event.ctrlKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === "d") {
+        event.preventDefault();
+        if (!selected || !("sectionId" in selected)) return;
+        if (selected.kind === "section") {
+          duplicateSection(selected.sectionId);
+        } else if (
+          selected.kind === "project" ||
+          selected.kind === "certification" ||
+          selected.kind === "service"
+        ) {
+          duplicateCollectionItem(selected.sectionId, selected.itemId);
+        } else if (
+          selected.kind === "layer" &&
+          selected.layerId.startsWith("custom:")
+        ) {
+          duplicateCustomLayer(
+            selected.sectionId,
+            selected.layerId.slice("custom:".length),
+          );
+        }
+        return;
+      }
+      if (key === "b" && selected && "sectionId" in selected) {
+        const section = portfolio?.sections.find(
+          (item) => item.id === selected.sectionId,
+        );
+        const isCustomText =
+          selected.kind === "layer" &&
+          selected.layerId.startsWith("custom:") &&
+          findCustomLayer(
+            section?.customLayers,
+            selected.layerId.slice("custom:".length),
+          )?.type === "text";
+        if (selected.kind !== "text" && !isCustomText) return;
+        event.preventDefault();
+        const elementKey = selectedElementKey(selected);
+        const currentWeight = section?.elements?.[elementKey]?.fontWeight;
+        updateElementSettings(selected.sectionId, elementKey, {
+          fontWeight: currentWeight && currentWeight >= 600 ? 400 : 700,
+        });
+      }
     };
     const onKeyUp = (event: KeyboardEvent) => {
       if (event.code !== "Space" || isTypingTarget(event.target)) return;
@@ -134,7 +227,18 @@ export function Editor({
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onWindowBlur);
     };
-  }, []);
+  }, [
+    deleteCollectionItem,
+    deleteCustomLayer,
+    deleteSection,
+    duplicateCollectionItem,
+    duplicateCustomLayer,
+    duplicateSection,
+    portfolio,
+    select,
+    selected,
+    updateElementSettings,
+  ]);
 
   const sections = useMemo(
     () =>
@@ -223,7 +327,9 @@ export function Editor({
       as="main"
       bg="bg.subtle"
       color="fg.default"
-      height="100vh"
+      display="flex"
+      flexDirection="column"
+      height="100dvh"
       overflow="hidden"
     >
       <EditorToolbar
@@ -242,7 +348,8 @@ export function Editor({
       <Box
         as="section"
         display="flex"
-        height="calc(100vh - 48px)"
+        flex="1"
+        minH="0"
         minW="0"
         overflow="hidden"
       >
@@ -290,7 +397,11 @@ export function Editor({
               if (parentId) {
                 setExpandedLayers((current) => ({
                   ...current,
-                  [`custom:${parentId}`]: true,
+                  [isNativeContainerLayerId(parentId)
+                    ? /^(project|certification|service):/.test(parentId)
+                      ? parentId.slice(parentId.indexOf(":") + 1)
+                      : `${sectionId}-${parentId}`
+                    : `custom:${parentId}`]: true,
                 }));
               }
               select({

@@ -3,9 +3,12 @@ import type { BoxSpacing, SelectedElement } from "../../types/portfolio";
 import { selectedElementKey } from "../../utils/elementSettings";
 
 export type ComputedBoxModel = {
-  margin: Required<BoxSpacing>;
-  padding: Required<BoxSpacing>;
+  margin: BoxSpacing & Required<Pick<BoxSpacing, "top" | "right" | "bottom" | "left">>;
+  padding: BoxSpacing & Required<Pick<BoxSpacing, "top" | "right" | "bottom" | "left">>;
   borderWidth: number;
+  width: number;
+  height: number;
+  minHeight?: number;
 };
 
 export function useComputedBoxModel(
@@ -55,6 +58,9 @@ export function useComputedBoxModel(
           left: cssPixels(style.paddingLeft),
         },
         borderWidth: cssPixels(style.borderTopWidth),
+        width: roundedPixels(target.offsetWidth),
+        height: roundedPixels(target.offsetHeight),
+        minHeight: optionalPositivePixels(style.minHeight),
       };
 
       setBoxModel((current) => (sameBoxModel(current, next) ? current : next));
@@ -89,6 +95,7 @@ export function resolveBoxSpacing(
     right: saved?.right ?? computed?.right ?? 0,
     bottom: saved?.bottom ?? computed?.bottom ?? 0,
     left: saved?.left ?? computed?.left ?? 0,
+    unit: saved?.unit || "px",
   };
 }
 
@@ -97,11 +104,30 @@ function cssPixels(value: string) {
   return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0;
 }
 
+function roundedPixels(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function optionalPositivePixels(value: string) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) && parsed > 0
+    ? roundedPixels(parsed)
+    : undefined;
+}
+
 function sameBoxModel(
   current: ComputedBoxModel | undefined,
   next: ComputedBoxModel,
 ) {
-  if (!current || current.borderWidth !== next.borderWidth) return false;
+  if (
+    !current ||
+    current.borderWidth !== next.borderWidth ||
+    current.width !== next.width ||
+    current.height !== next.height ||
+    current.minHeight !== next.minHeight
+  ) {
+    return false;
+  }
   return (["top", "right", "bottom", "left"] as const).every(
     (side) =>
       current.margin[side] === next.margin[side] &&

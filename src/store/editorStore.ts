@@ -17,6 +17,7 @@ import {
 import {
   appendCustomLayer,
   deleteCustomLayer,
+  duplicateCustomLayer,
   moveCustomLayer,
   moveCustomLayerToNativeContainer,
   updateCustomLayer,
@@ -50,16 +51,18 @@ interface EditorState {
   reorderSections: (activeId: string, overId: string) => void;
   duplicateSection: (sectionId: string) => void;
   deleteSection: (sectionId: string) => void;
-  addSection: (type: "projects" | "certifications" | "services" | "about") => void;
+  addSection: (type: "custom" | "projects" | "certifications" | "services" | "about") => void;
   updateCollectionItem: (sectionId: string, itemId: string, value: Record<string, unknown>) => void;
   addCollectionItem: (sectionId: string) => void;
   deleteCollectionItem: (sectionId: string, itemId: string) => void;
+  duplicateCollectionItem: (sectionId: string, itemId: string) => void;
   reorderCollectionItems: (sectionId: string, activeId: string, overId: string) => void;
   addCustomLayer: (sectionId: string, layer: CustomLayer, parentId?: string) => void;
   updateCustomLayer: (sectionId: string, layerId: string, updates: Partial<Omit<CustomLayer, "id" | "type" | "children">>) => void;
   deleteCustomLayer: (sectionId: string, layerId: string) => void;
+  duplicateCustomLayer: (sectionId: string, layerId: string) => void;
   reorderCustomLayers: (sectionId: string, activeId: string, overId: string) => void;
-  moveCustomLayerToContainer: (sectionId: string, activeId: string, parentLayerId: string) => void;
+  moveCustomLayerToContainer: (sectionId: string, activeId: string, parentLayerId?: string) => void;
   undo: () => void;
   redo: () => void;
   restoreHistory: (entryId: string) => void;
@@ -295,7 +298,10 @@ export const useEditorStore = create<EditorState>((set) => ({
   addSection: (type) =>
     set((state) =>
       mutatePortfolio(state, `Added ${humanize(type)} section`, (portfolio) => {
-        const label = type[0].toUpperCase() + type.slice(1);
+        const label =
+          type === "custom"
+            ? "Blank section"
+            : type[0].toUpperCase() + type.slice(1);
         portfolio.sections = normalizeOrder([
           ...portfolio.sections,
           {
@@ -305,7 +311,31 @@ export const useEditorStore = create<EditorState>((set) => ({
             visible: true,
             locked: false,
             order: portfolio.sections.length - 1,
-            content: type === "about" ? { title: "About", description: portfolio.owner.aboutDescription || "" } : { title: label, items: [] },
+            content:
+              type === "custom"
+                ? {}
+                : type === "about"
+                  ? { title: "About", description: portfolio.owner.aboutDescription || "" }
+                  : type === "projects"
+                    ? {
+                        title: "Projects",
+                        description: "A selection of recent work.",
+                        items: [
+                          {
+                            id: nanoid(),
+                            title: "New project",
+                            description: "Describe the project and its outcome.",
+                            tags: [],
+                            projectUrl: "",
+                            repositoryUrl: "",
+                            role: "",
+                            completionDate: "",
+                            featured: false,
+                          },
+                        ],
+                      }
+                    : { title: label, items: [] },
+            customLayers: type === "custom" ? [] : undefined,
             settings: {
               layoutMode: "stack",
               stackDirection: "column",
@@ -362,6 +392,21 @@ export const useEditorStore = create<EditorState>((set) => ({
           return { ...section, content: { ...section.content, items: ((section.content.items || []) as Record<string, unknown>[]).filter((item) => item.id !== itemId) } };
         });
       })
+    ),
+  duplicateCollectionItem: (sectionId, itemId) =>
+    set((state) =>
+      mutatePortfolio(state, `Duplicated item in ${sectionLabel(state, sectionId)}`, (portfolio) => {
+        portfolio.sections = portfolio.sections.map((section) => {
+          if (section.id !== sectionId) return section;
+          const items = [...((section.content.items || []) as Record<string, unknown>[])];
+          const index = items.findIndex((item) => item.id === itemId);
+          if (index < 0) return section;
+          const copy = structuredClone(items[index]);
+          copy.id = nanoid();
+          items.splice(index + 1, 0, copy);
+          return { ...section, content: { ...section.content, items } };
+        });
+      }),
     ),
   reorderCollectionItems: (sectionId, activeId, overId) =>
     set((state) =>
@@ -425,6 +470,23 @@ export const useEditorStore = create<EditorState>((set) => ({
             ? {
                 ...section,
                 customLayers: deleteCustomLayer(section.customLayers, layerId),
+              }
+            : section,
+        );
+      }),
+    ),
+  duplicateCustomLayer: (sectionId, layerId) =>
+    set((state) =>
+      mutatePortfolio(state, "Duplicated custom layer", (portfolio) => {
+        portfolio.sections = portfolio.sections.map((section) =>
+          section.id === sectionId
+            ? {
+                ...section,
+                customLayers: duplicateCustomLayer(
+                  section.customLayers,
+                  layerId,
+                  nanoid,
+                ),
               }
             : section,
         );

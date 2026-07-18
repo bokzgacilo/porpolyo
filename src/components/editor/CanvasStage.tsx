@@ -7,10 +7,11 @@ import {
   Portal,
   Text,
 } from "@chakra-ui/react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type React from "react";
 import { LuShare, LuSquareDot, LuTrash } from "react-icons/lu";
 import { Portfolio, PreviewMode, SelectedElement } from "../../types/portfolio";
+import { breakpointWidth } from "../../config/breakpointSettings";
 import { selectedElementKey } from "../../utils/elementSettings";
 import { PortfolioPreview } from "../PortfolioPreview";
 import { selectedLabel } from "./layerHelpers";
@@ -23,6 +24,9 @@ const zoomOptions = [
   { label: "50%", value: 0.5 },
   { label: "75%", value: 0.75 },
   { label: "100%", value: 1 },
+  { label: "125%", value: 1.25 },
+  { label: "150%", value: 1.5 },
+  { label: "200%", value: 2 },
 ];
 
 type OverlayRect = { x: number; y: number; width: number; height: number };
@@ -88,6 +92,34 @@ export function CanvasStage({
     applyViewportTransform();
     setZoom(nextZoom);
   };
+
+  useEffect(() => {
+    const onZoomShortcut = (event: KeyboardEvent) => {
+      const target = event.target;
+      const isTyping =
+        target instanceof HTMLElement &&
+        !!target.closest('input, textarea, select, [contenteditable="true"]');
+      if (
+        isTyping ||
+        !(event.metaKey || event.ctrlKey || event.altKey)
+      ) {
+        return;
+      }
+      const zoomIn = event.key === "+" || event.key === "=";
+      const zoomOut = event.key === "-" || event.key === "_";
+      if (!zoomIn && !zoomOut) return;
+      event.preventDefault();
+      const direction = zoomIn ? 1 : -1;
+      const nextZoom = Math.min(
+        Math.max(zoomRef.current + direction * 0.1, 0.1),
+        2,
+      );
+      updateZoom(Number(nextZoom.toFixed(2)));
+    };
+
+    window.addEventListener("keydown", onZoomShortcut);
+    return () => window.removeEventListener("keydown", onZoomShortcut);
+  }, []);
 
   const startPan = (event: React.PointerEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
@@ -168,6 +200,16 @@ export function CanvasStage({
     <Box
       as="section"
       ref={stageRef}
+      h="full"
+      minH="0"
+      style={
+        {
+          "--canvas-width": breakpointWidth(
+            previewMode,
+            portfolio.settings.breakpointWidths,
+          ),
+        } as React.CSSProperties
+      }
       className={`canvas-stage ${previewMode} ${panReady ? "pan-ready" : ""}`}
       onPointerDown={startPan}
       onPointerMove={movePan}

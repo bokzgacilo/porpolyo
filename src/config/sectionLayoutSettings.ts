@@ -66,6 +66,10 @@ const defaultsBySection: Record<SectionType, SectionLayoutDefaults> = {
   projects: stackDefaults,
   certifications: stackDefaults,
   services: stackDefaults,
+  custom: {
+    ...stackDefaults,
+    stackGap: 16,
+  },
   about: {
     layoutMode: "grid",
     gridColumns: 2,

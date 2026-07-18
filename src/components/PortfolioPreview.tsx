@@ -17,6 +17,7 @@ import {
 } from "../types/portfolio";
 import { getElementSettings, toElementStyle } from "../utils/elementSettings";
 import { resolveSectionLayoutSettings } from "../config/sectionLayoutSettings";
+import { resolveBodyLayout } from "../config/bodySettings";
 
 interface Props {
   portfolio: Portfolio;
@@ -42,6 +43,10 @@ export const PortfolioPreview = React.memo(function PortfolioPreview({
         .filter((section) => section.visible),
     [portfolio.sections],
   );
+  const bodyLayout = React.useMemo(
+    () => resolveBodyLayout(portfolio.settings.bodyLayout),
+    [portfolio.settings.bodyLayout],
+  );
   const style = React.useMemo(
     () =>
       ({
@@ -53,8 +58,9 @@ export const PortfolioPreview = React.memo(function PortfolioPreview({
         "--text": palette.text,
         "--muted": palette.muted,
         "--border": palette.border,
+        ...toElementStyle(bodyLayout),
       }) as React.CSSProperties,
-    [palette],
+    [bodyLayout, palette],
   );
 
   return (
@@ -85,6 +91,8 @@ export const PortfolioPreview = React.memo(function PortfolioPreview({
           return <MemoServicesSection key={section.id} {...props} />;
         if (section.type === "about")
           return <MemoAboutSection key={section.id} {...props} />;
+        if (section.type === "custom")
+          return <MemoBlankSection key={section.id} {...props} />;
         return <MemoFooterSection key={section.id} {...props} />;
       })}
     </article>
@@ -105,6 +113,7 @@ const MemoCertificationsSection = React.memo(
 );
 const MemoServicesSection = React.memo(ServicesSection, sameSectionProps);
 const MemoAboutSection = React.memo(AboutSection, sameSectionProps);
+const MemoBlankSection = React.memo(BlankSection, sameSectionProps);
 const MemoFooterSection = React.memo(FooterSection, sameSectionProps);
 
 function sameSectionProps(previous: SectionProps, next: SectionProps) {
@@ -199,49 +208,70 @@ function sectionStyle(section: Portfolio["sections"][number]) {
     backgroundColor: section.settings.backgroundColor,
     color: section.settings.textColor,
     textAlign: section.settings.alignment,
+    width: sectionSizeValue(section.settings.width),
+    height: sectionSizeValue(section.settings.height),
+    minHeight: sectionSizeValue(section.settings.minHeight),
     marginTop:
-      section.settings.marginTop !== undefined
-        ? `${section.settings.marginTop}px`
-        : undefined,
+      section.settings.margin?.top !== undefined
+        ? boxSpacingValue(
+            section.settings.margin.top,
+            section.settings.margin.unit,
+          )
+        : boxSpacingValue(section.settings.marginTop),
     marginBottom:
-      section.settings.marginBottom !== undefined
-        ? `${section.settings.marginBottom}px`
-        : undefined,
-    marginRight:
-      section.settings.margin?.right !== undefined
-        ? `${section.settings.margin.right}px`
-        : undefined,
-    marginLeft:
-      section.settings.margin?.left !== undefined
-        ? `${section.settings.margin.left}px`
-        : undefined,
+      section.settings.margin?.bottom !== undefined
+        ? boxSpacingValue(
+            section.settings.margin.bottom,
+            section.settings.margin.unit,
+          )
+        : boxSpacingValue(section.settings.marginBottom),
+    marginRight: boxSpacingValue(
+      section.settings.margin?.right,
+      section.settings.margin?.unit,
+    ),
+    marginLeft: boxSpacingValue(
+      section.settings.margin?.left,
+      section.settings.margin?.unit,
+    ),
     paddingTop:
       section.settings.padding?.top !== undefined
-        ? `${section.settings.padding.top}px`
+        ? boxSpacingValue(
+            section.settings.padding.top,
+            section.settings.padding.unit,
+          )
         : section.settings.paddingTop !== undefined
-          ? `${section.settings.paddingTop}px`
+          ? boxSpacingValue(section.settings.paddingTop)
           : section.settings.spacing
             ? sectionSpacing[section.settings.spacing]
             : undefined,
     paddingRight:
       section.settings.padding?.right !== undefined
-        ? `${section.settings.padding.right}px`
+        ? boxSpacingValue(
+            section.settings.padding.right,
+            section.settings.padding.unit,
+          )
         : section.settings.paddingInline !== undefined
-          ? `${section.settings.paddingInline}px`
+          ? boxSpacingValue(section.settings.paddingInline)
           : undefined,
     paddingBottom:
       section.settings.padding?.bottom !== undefined
-        ? `${section.settings.padding.bottom}px`
+        ? boxSpacingValue(
+            section.settings.padding.bottom,
+            section.settings.padding.unit,
+          )
         : section.settings.paddingBottom !== undefined
-          ? `${section.settings.paddingBottom}px`
+          ? boxSpacingValue(section.settings.paddingBottom)
           : section.settings.spacing
             ? sectionSpacing[section.settings.spacing]
             : undefined,
     paddingLeft:
       section.settings.padding?.left !== undefined
-        ? `${section.settings.padding.left}px`
+        ? boxSpacingValue(
+            section.settings.padding.left,
+            section.settings.padding.unit,
+          )
         : section.settings.paddingInline !== undefined
-          ? `${section.settings.paddingInline}px`
+          ? boxSpacingValue(section.settings.paddingInline)
           : undefined,
     borderWidth:
       section.settings.borderWidth !== undefined
@@ -305,6 +335,14 @@ function sectionStyle(section: Portfolio["sections"][number]) {
   }
   sectionStyleCache.set(section, style);
   return style;
+}
+
+function boxSpacingValue(value?: number, unit = "px") {
+  return value !== undefined ? `${value}${unit}` : undefined;
+}
+
+function sectionSizeValue(size?: { value?: number; unit: "px" | "%" }) {
+  return size?.value !== undefined ? `${size.value}${size.unit}` : undefined;
 }
 
 function HeaderSection({
@@ -598,14 +636,15 @@ function ProjectsSection({
       id="projects"
       {...selectable(section, isSelected, onSelect, editable)}
     >
-      <SectionHeading
+      <ProjectSectionIntro
         section={section}
         selected={selected}
         onSelect={onSelect}
-        titleLimit={80}
+        editable={editable}
       />
       <div
         {...editorTarget(section.id, "layer:project-grid")}
+        id="project-list"
         className="project-grid"
         style={toElementStyle(
           getElementSettings(section, "layer:project-grid"),
@@ -742,6 +781,13 @@ function ProjectsSection({
               {project.projectUrl ? "View project" : "Project details"}
             </span>
             {project.featured && <small>Featured</small>}
+            <CustomSectionLayers
+              section={section}
+              parentLayerId={`project:${project.id}`}
+              selected={selected}
+              onSelect={onSelect}
+              editable={editable}
+            />
           </button>
         ))}
         <CustomSectionLayers
@@ -780,6 +826,7 @@ function CertificationsSection({
         selected={selected}
         onSelect={onSelect}
         titleLimit={100}
+        editable={editable}
       />
       <div
         {...editorTarget(section.id, "layer:certification-list")}
@@ -846,6 +893,13 @@ function CertificationsSection({
               {item.issueDate}{" "}
               {item.credentialId ? `· ${item.credentialId}` : ""}
             </small>
+            <CustomSectionLayers
+              section={section}
+              parentLayerId={`certification:${item.id}`}
+              selected={selected}
+              onSelect={onSelect}
+              editable={editable}
+            />
           </button>
         ))}
         <CustomSectionLayers
@@ -884,6 +938,7 @@ function ServicesSection({
         selected={selected}
         onSelect={onSelect}
         titleLimit={80}
+        editable={editable}
       />
       <div
         {...editorTarget(section.id, "layer:service-cards")}
@@ -942,6 +997,13 @@ function ServicesSection({
             <p>{item.description}</p>
             <span>{item.startingPrice}</span>
             <small>{item.ctaText}</small>
+            <CustomSectionLayers
+              section={section}
+              parentLayerId={`service:${item.id}`}
+              selected={selected}
+              onSelect={onSelect}
+              editable={editable}
+            />
           </button>
         ))}
         <CustomSectionLayers
@@ -988,6 +1050,7 @@ function AboutSection({
           selected={selected}
           onSelect={onSelect}
           titleLimit={80}
+          editable={editable}
         />
         <EditableText
           section={section}
@@ -1141,6 +1204,48 @@ function FooterSection({
   );
 }
 
+function BlankSection({
+  section,
+  selected,
+  onSelect,
+  isSelected,
+  editable,
+}: SectionProps) {
+  const rootLayers = (section.customLayers || []).filter(
+    (layer) => !layer.parentLayerId,
+  );
+  return (
+    <section
+      {...selectable(section, isSelected, onSelect, editable)}
+      className={`portfolio-section blank-canvas-section selectable ${isSelected ? "selected" : ""}`}
+    >
+      <CustomSectionLayers
+        section={section}
+        selected={selected}
+        onSelect={onSelect}
+        editable={editable}
+      />
+      {editable && rootLayers.length === 0 && (
+        <div
+          aria-hidden="true"
+          style={{
+            alignItems: "center",
+            border: "1px dashed var(--border)",
+            color: "var(--muted)",
+            display: "flex",
+            justifyContent: "center",
+            minHeight: "240px",
+            padding: "32px",
+            textAlign: "center",
+          }}
+        >
+          Select this section, then add or drop a div, text, or image layer.
+        </div>
+      )}
+    </section>
+  );
+}
+
 function CustomSectionLayers({
   section,
   parentLayerId,
@@ -1267,16 +1372,84 @@ function CustomLayerView({
   );
 }
 
+function ProjectSectionIntro({
+  section,
+  selected,
+  onSelect,
+  editable,
+}: {
+  section: Portfolio["sections"][number];
+  selected?: SelectedElement;
+  onSelect: Props["onSelect"];
+  editable?: boolean;
+}) {
+  const contentSettings = getElementSettings(section, "layer:section-heading");
+  const titleSettings = getElementSettings(section, "text:title");
+  const descriptionSettings = getElementSettings(section, "text:description");
+  const shouldExpand =
+    contentSettings.width ||
+    contentSettings.spanSection ||
+    titleSettings.width ||
+    titleSettings.spanSection ||
+    descriptionSettings.width ||
+    descriptionSettings.spanSection;
+
+  return (
+    <div
+      {...editorTarget(section.id, "layer:section-heading")}
+      id="project-content"
+      className="section-heading"
+      style={{
+        ...toElementStyle(contentSettings),
+        maxWidth: shouldExpand ? "none" : undefined,
+        width: shouldExpand ? "100%" : undefined,
+      }}
+    >
+      <EditableText
+        section={section}
+        field="title"
+        label="Projects Title"
+        limit={80}
+        value={String(section.content.title || "Projects")}
+        selected={selected}
+        onSelect={onSelect}
+        as="h2"
+      />
+      <EditableText
+        section={section}
+        field="description"
+        label="Projects Description"
+        limit={250}
+        value={String(
+          section.content.description || section.content.subtitle || "",
+        )}
+        selected={selected}
+        onSelect={onSelect}
+        as="p"
+      />
+      <CustomSectionLayers
+        section={section}
+        parentLayerId="section-heading"
+        selected={selected}
+        onSelect={onSelect}
+        editable={editable}
+      />
+    </div>
+  );
+}
+
 function SectionHeading({
   section,
   selected,
   onSelect,
   titleLimit,
+  editable,
 }: {
   section: Portfolio["sections"][number];
   selected?: SelectedElement;
   onSelect: Props["onSelect"];
   titleLimit: number;
+  editable?: boolean;
 }) {
   const headingLayerSettings = getElementSettings(
     section,
@@ -1324,6 +1497,13 @@ function SectionHeading({
           as="p"
         />
       )}
+      <CustomSectionLayers
+        section={section}
+        parentLayerId="section-heading"
+        selected={selected}
+        onSelect={onSelect}
+        editable={editable}
+      />
     </div>
   );
 }

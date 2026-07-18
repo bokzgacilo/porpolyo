@@ -4,7 +4,29 @@ import { PersonalInformation, Portfolio, PortfolioSection } from "../types/portf
 const now = () => new Date().toISOString();
 
 export function createDefaultPortfolio(templateId: string, paletteId: string, owner: PersonalInformation): Portfolio {
-  const baseSections: Omit<PortfolioSection, "id">[] = [
+  const baseSections: Omit<PortfolioSection, "id">[] = templateId === "blank"
+    ? [
+        {
+          type: "custom",
+          label: "Blank section",
+          visible: true,
+          locked: false,
+          order: 0,
+          content: {},
+          settings: {
+            layoutMode: "stack",
+            stackDirection: "column",
+            stackAlign: "stretch",
+            stackJustify: "flex-start",
+            stackGap: 16,
+            layoutWrap: false,
+            spacing: "large",
+            contentWidth: "wide",
+          },
+          customLayers: [],
+        },
+      ]
+    : [
     {
       type: "header",
       label: "Header",
@@ -44,7 +66,7 @@ export function createDefaultPortfolio(templateId: string, paletteId: string, ow
       order: 2,
       content: {
         title: "Selected projects",
-        subtitle: "A focused sample of recent work, roles, and outcomes.",
+        description: "A focused sample of recent work, roles, and outcomes.",
         items: [
           { id: nanoid(), title: "Portfolio Platform", description: "A responsive portfolio system with reusable sections and publish-ready pages.", tags: ["React", "Design System"], projectUrl: "", repositoryUrl: "", role: "Lead Developer", completionDate: "2026", featured: true },
           { id: nanoid(), title: "Commerce Redesign", description: "A cleaner storefront experience with faster product discovery and stronger conversion paths.", tags: ["Shopify", "UX"], projectUrl: "", repositoryUrl: "", role: "UI Developer", completionDate: "2025", featured: false }
@@ -110,7 +132,7 @@ export function createDefaultPortfolio(templateId: string, paletteId: string, ow
       },
       settings: { spacing: "medium", contentWidth: "wide" }
     }
-  ];
+      ];
 
   return {
     id: nanoid(),
@@ -134,7 +156,19 @@ export function createDefaultPortfolio(templateId: string, paletteId: string, ow
     },
     owner,
     sections: baseSections.map((section) => ({ ...section, id: nanoid() })),
-    settings: { stickyHeader: true, public: false },
+    settings: {
+      stickyHeader: true,
+      public: false,
+      breakpointWidths: { tablet: 768, mobile: 390 },
+      bodyLayout: {
+        layoutMode: "stack",
+        stackDirection: "column",
+        stackAlign: "stretch",
+        stackJustify: "flex-start",
+        stackGap: 0,
+        layoutWrap: false,
+      },
+    },
     createdAt: now(),
     updatedAt: now()
   };

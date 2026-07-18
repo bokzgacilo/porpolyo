@@ -29,6 +29,7 @@ export function getSectionLayers(
     label: `${section.label} section`,
     selection: { kind: "section", sectionId: section.id },
     removable: false,
+    acceptsChildren: true,
     children: [
       ...attachNativeContainerChildren(
         section,
@@ -98,10 +99,26 @@ function sectionChildren(
   if (section.type === "projects") {
     const projects = (section.content.items || []) as ProjectItem[];
     return [
-      headingLayer(section, 80),
+      {
+        id: `${section.id}-project-content`,
+        label: "Content",
+        selection: layerSelection(section, "section-heading", "Project Content"),
+        removable: false,
+        acceptsChildren: true,
+        children: [
+          textLayer(section, "title", "Title", "Projects Title", 80),
+          textLayer(
+            section,
+            "description",
+            "Description",
+            "Projects Description",
+            250,
+          ),
+        ],
+      },
       {
         id: `${section.id}-projects-list`,
-        label: "Projects list",
+        label: "Project list",
         selection: layerSelection(section, "project-grid", "Projects List"),
         removable: false,
         acceptsChildren: true,
@@ -113,6 +130,7 @@ function sectionChildren(
             selection: { kind: "project", sectionId: section.id, itemId: project.id },
             removable: true,
             sortable: true,
+            acceptsChildren: true,
             children: [
               childLayer(project.id, "image", "Image", `${name} Image`, section.id),
               childLayer(project.id, "title", "Title", `${name} Title`, section.id),
@@ -142,6 +160,7 @@ function sectionChildren(
           selection: { kind: "certification", sectionId: section.id, itemId: certification.id },
           removable: true,
           sortable: true,
+          acceptsChildren: true,
           children: [{
             id: `${certification.id}-image`,
             label: "Image",
@@ -173,6 +192,7 @@ function sectionChildren(
           selection: { kind: "service", sectionId: section.id, itemId: service.id },
           removable: true,
           sortable: true,
+          acceptsChildren: true,
           children: [{
             id: `${service.id}-icon`,
             label: "Icon / image",
@@ -217,6 +237,8 @@ function sectionChildren(
     ];
   }
 
+  if (section.type === "custom") return [];
+
   return [
     textLayer(section, "logoText", "Logo", "Footer Logo", 60),
     textLayer(section, "message", "Message", "Footer Message", 160),
@@ -240,6 +262,7 @@ function headingLayer(section: PortfolioSection, limit: number): LayerNode {
     label: "Section heading",
     selection: layerSelection(section, "section-heading", "Section Heading"),
     removable: false,
+    acceptsChildren: true,
     children,
   };
 }
@@ -307,10 +330,9 @@ function attachNativeContainerChildren(
   customLayers: CustomLayer[],
 ): LayerNode[] {
   return nodes.map((node) => {
-    const nativeLayerId =
-      node.selection.kind === "layer" && node.acceptsChildren
-        ? node.selection.layerId
-        : undefined;
+    const nativeLayerId = node.acceptsChildren
+      ? nativeContainerLayerIdFromSelection(node.selection)
+      : undefined;
     const assignedLayers = nativeLayerId
       ? customLayers.filter((layer) => layer.parentLayerId === nativeLayerId)
       : [];
@@ -337,7 +359,25 @@ export function isNativeContainerLayerId(layerId: string) {
     "service-cards",
     "about-content",
     "about-panel",
-  ].includes(layerId);
+    "section-heading",
+  ].includes(layerId) || /^(project|certification|service):[^:]+$/.test(layerId);
+}
+
+export function nativeContainerLayerIdFromSelection(
+  selected: SelectedElement | undefined,
+) {
+  if (!selected) return undefined;
+  if (selected.kind === "layer" && isNativeContainerLayerId(selected.layerId)) {
+    return selected.layerId;
+  }
+  if (
+    selected.kind === "project" ||
+    selected.kind === "certification" ||
+    selected.kind === "service"
+  ) {
+    return `${selected.kind}:${selected.itemId}`;
+  }
+  return undefined;
 }
 
 export function customLayerIdFromSelection(

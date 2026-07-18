@@ -5,6 +5,7 @@ export type SectionType =
   | "certifications"
   | "services"
   | "about"
+  | "custom"
   | "footer";
 
 export type PreviewMode = "desktop" | "tablet" | "mobile";
@@ -71,6 +72,9 @@ export interface SectionSettings {
   alignment?: "left" | "center" | "right";
   spacing?: "small" | "medium" | "large";
   contentWidth?: "narrow" | "standard" | "wide";
+  width?: SizeValue;
+  height?: SizeValue;
+  minHeight?: SizeValue;
   margin?: BoxSpacing;
   padding?: BoxSpacing;
   marginTop?: number;
@@ -89,7 +93,10 @@ export interface BoxSpacing {
   right?: number;
   bottom?: number;
   left?: number;
+  unit?: SpacingUnit;
 }
+
+export type SpacingUnit = "px" | "rem" | "em" | "%" | "vw" | "vh";
 
 export interface ElementSettings {
   layoutMode?: "grid" | "stack";
@@ -195,7 +202,14 @@ export interface PortfolioSettings {
   stickyHeader: boolean;
   public: boolean;
   customDomain?: string;
+  breakpointWidths?: BreakpointWidths;
+  bodyLayout?: ElementSettings;
   editor?: EditorSettings;
+}
+
+export interface BreakpointWidths {
+  tablet: number;
+  mobile: number;
 }
 
 export interface EditorSettings {

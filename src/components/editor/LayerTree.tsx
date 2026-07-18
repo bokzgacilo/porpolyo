@@ -1,4 +1,11 @@
-import { DndContext, DragEndEvent, useDroppable } from "@dnd-kit/core";
+import {
+  DndContext,
+  DragEndEvent,
+  closestCenter,
+  pointerWithin,
+  type CollisionDetection,
+  useDroppable,
+} from "@dnd-kit/core";
 import {
   SortableContext,
   useSortable,
@@ -28,9 +35,20 @@ import {
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { getSectionLayoutMode } from "../../config/sectionLayoutSettings";
 import { PortfolioSection, SelectedElement } from "../../types/portfolio";
-import { LayerNode, selectedLabel } from "./layerHelpers";
+import {
+  LayerNode,
+  nativeContainerLayerIdFromSelection,
+  selectedLabel,
+} from "./layerHelpers";
 
 type LayerTreeNode = LayerNode & { children?: LayerTreeNode[] };
+
+const layerCollisionDetection: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  return pointerCollisions.length > 0
+    ? pointerCollisions
+    : closestCenter(args);
+};
 
 export const LayerTree = memo(function LayerTree({
   layers,
@@ -53,7 +71,7 @@ export const LayerTree = memo(function LayerTree({
   onRemove: (selection: SelectedElement) => void;
   onReorderCollection: (activeId: string, overId: string) => void;
   onReorderCustomLayer: (activeId: string, overId: string) => void;
-  onMoveCustomLayerToContainer: (activeId: string, parentLayerId: string) => void;
+  onMoveCustomLayerToContainer: (activeId: string, parentLayerId?: string) => void;
 }) {
   const flatLayers = useMemo(() => flattenLayers(layers), [layers]);
   const projectIds = useMemo(
@@ -107,16 +125,19 @@ export const LayerTree = memo(function LayerTree({
     const activeId = String(event.active.id);
     const overId = String(event.over.id);
     const overLayer = flatLayers.find((layer) => layer.id === overId);
-    if (
-      activeId.startsWith("custom:") &&
-      !overId.startsWith("custom:") &&
-      overLayer?.acceptsChildren &&
-      overLayer.selection.kind === "layer"
-    ) {
-      onMoveCustomLayerToContainer(
-        activeId.slice("custom:".length),
-        overLayer.selection.layerId,
-      );
+    if (activeId.startsWith("custom:") && overLayer?.acceptsChildren) {
+      const customId = activeId.slice("custom:".length);
+      if (overId.startsWith("custom:")) {
+        onReorderCustomLayer(customId, overId.slice("custom:".length));
+      } else {
+        onMoveCustomLayerToContainer(
+          customId,
+          nativeContainerLayerIdFromSelection(overLayer.selection),
+        );
+      }
+      if (!expandedLayerIds.includes(overId)) {
+        onExpandedLayerIdsChange([...expandedLayerIds, overId]);
+      }
       return;
     }
     if (activeId.startsWith("custom:") && overId.startsWith("custom:")) {
@@ -132,7 +153,10 @@ export const LayerTree = memo(function LayerTree({
   };
 
   return (
-    <DndContext onDragEnd={onDragEnd}>
+    <DndContext
+      collisionDetection={layerCollisionDetection}
+      onDragEnd={onDragEnd}
+    >
       <SortableContext
         items={projectIds}
         strategy={verticalListSortingStrategy}

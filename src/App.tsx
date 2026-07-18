@@ -154,6 +154,17 @@ export function App() {
     navigate("onboarding", "/builder/new");
   };
 
+  const logout = async () => {
+    try {
+      await auth.signOut();
+      router.replace("/");
+    } catch (authError) {
+      setError(
+        authError instanceof Error ? authError.message : "Could not log out",
+      );
+    }
+  };
+
   const openDashboard = () => {
     if (!auth.user) {
       void loginWithGoogle();
@@ -308,6 +319,7 @@ export function App() {
         portfolios={portfolios}
         loading={portfoliosLoading}
         onNew={() => navigate("onboarding", "/builder/new")}
+        onLogout={logout}
         onOpen={(item, target) => {
           setPortfolio(item);
           if (target === "editor") navigate("editor", `/builder/${item.id}`);

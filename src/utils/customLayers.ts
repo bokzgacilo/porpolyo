@@ -32,6 +32,8 @@ export function appendCustomLayer(
 ): CustomLayer[] {
   const current = layers || [];
   if (!parentId) return [...current, layer];
+  const parent = findCustomLayer(current, parentId);
+  if (!parent) return [...current, { ...layer, parentLayerId: parentId }];
   return current.map((item) =>
     item.id === parentId && item.type === "div"
       ? { ...item, children: [...(item.children || []), layer] }
@@ -72,6 +74,44 @@ export function deleteCustomLayer(
     }));
 }
 
+export function duplicateCustomLayer(
+  layers: CustomLayer[] | undefined,
+  id: string,
+  createId: () => string,
+): CustomLayer[] {
+  const current = layers || [];
+  const index = current.findIndex((layer) => layer.id === id);
+  if (index >= 0) {
+    const copy = cloneCustomLayer(current[index], createId, true);
+    return [
+      ...current.slice(0, index + 1),
+      copy,
+      ...current.slice(index + 1),
+    ];
+  }
+  return current.map((layer) => ({
+    ...layer,
+    children: layer.children
+      ? duplicateCustomLayer(layer.children, id, createId)
+      : undefined,
+  }));
+}
+
+function cloneCustomLayer(
+  layer: CustomLayer,
+  createId: () => string,
+  root = false,
+): CustomLayer {
+  return {
+    ...layer,
+    id: createId(),
+    name: root ? `${layer.name} copy` : layer.name,
+    children: layer.children?.map((child) =>
+      cloneCustomLayer(child, createId),
+    ),
+  };
+}
+
 export function moveCustomLayer(
   layers: CustomLayer[] | undefined,
   activeId: string,
@@ -100,7 +140,7 @@ export function moveCustomLayer(
 export function moveCustomLayerToNativeContainer(
   layers: CustomLayer[] | undefined,
   activeId: string,
-  parentLayerId: string,
+  parentLayerId?: string,
 ): CustomLayer[] {
   const current = layers || [];
   const active = findCustomLayer(current, activeId);

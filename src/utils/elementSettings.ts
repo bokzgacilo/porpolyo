@@ -78,14 +78,14 @@ export function toElementStyle(settings: ElementSettings | undefined): CSSProper
           ? "wrap"
           : "nowrap"
         : undefined,
-    marginTop: spacingValue(settings.margin?.top),
-    marginRight: spacingValue(settings.margin?.right),
-    marginBottom: spacingValue(settings.margin?.bottom),
-    marginLeft: spacingValue(settings.margin?.left),
-    paddingTop: spacingValue(settings.padding?.top),
-    paddingRight: spacingValue(settings.padding?.right),
-    paddingBottom: spacingValue(settings.padding?.bottom),
-    paddingLeft: spacingValue(settings.padding?.left),
+    marginTop: spacingValue(settings.margin?.top, settings.margin?.unit),
+    marginRight: spacingValue(settings.margin?.right, settings.margin?.unit),
+    marginBottom: spacingValue(settings.margin?.bottom, settings.margin?.unit),
+    marginLeft: spacingValue(settings.margin?.left, settings.margin?.unit),
+    paddingTop: spacingValue(settings.padding?.top, settings.padding?.unit),
+    paddingRight: spacingValue(settings.padding?.right, settings.padding?.unit),
+    paddingBottom: spacingValue(settings.padding?.bottom, settings.padding?.unit),
+    paddingLeft: spacingValue(settings.padding?.left, settings.padding?.unit),
     borderWidth: settings.borderWidth !== undefined ? `${settings.borderWidth}px` : undefined,
     borderStyle: settings.borderStyle,
     borderColor: settings.borderColor,
@@ -101,8 +101,8 @@ export function toElementStyle(settings: ElementSettings | undefined): CSSProper
   return style;
 }
 
-function spacingValue(value?: number) {
-  return value !== undefined ? `${value}px` : undefined;
+function spacingValue(value?: number, unit = "px") {
+  return value !== undefined ? `${value}${unit}` : undefined;
 }
 
 function typographyValue(

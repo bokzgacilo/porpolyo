@@ -16,10 +16,10 @@ export function BoxModelPreview({
       <BoxModelLayer
         label="Margin"
         className="box-model-margin"
-        top={formatBoxValue(margin.top)}
-        right={formatBoxValue(margin.right)}
-        bottom={formatBoxValue(margin.bottom)}
-        left={formatBoxValue(margin.left)}
+        top={formatBoxValue(margin.top, margin.unit)}
+        right={formatBoxValue(margin.right, margin.unit)}
+        bottom={formatBoxValue(margin.bottom, margin.unit)}
+        left={formatBoxValue(margin.left, margin.unit)}
       >
         <BoxModelLayer
           label="Border"
@@ -32,10 +32,10 @@ export function BoxModelPreview({
           <BoxModelLayer
             label="Padding"
             className="box-model-padding"
-            top={formatBoxValue(padding.top)}
-            right={formatBoxValue(padding.right)}
-            bottom={formatBoxValue(padding.bottom)}
-            left={formatBoxValue(padding.left)}
+            top={formatBoxValue(padding.top, padding.unit)}
+            right={formatBoxValue(padding.right, padding.unit)}
+            bottom={formatBoxValue(padding.bottom, padding.unit)}
+            left={formatBoxValue(padding.left, padding.unit)}
           >
             <div className="box-model-content">Content</div>
           </BoxModelLayer>
@@ -74,6 +74,6 @@ function BoxModelLayer({
   );
 }
 
-function formatBoxValue(value?: number) {
-  return `${value ?? 0}px`;
+function formatBoxValue(value?: number, unit = "px") {
+  return `${value ?? 0}${unit}`;
 }

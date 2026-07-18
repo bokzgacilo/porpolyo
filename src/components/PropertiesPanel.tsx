@@ -13,6 +13,11 @@ import {
   toImageFrameStyle,
 } from "../config/imageSettings";
 import { resolveSectionLayoutSettings } from "../config/sectionLayoutSettings";
+import {
+  defaultBreakpointWidths,
+  resolveBreakpointWidths,
+} from "../config/breakpointSettings";
+import { resolveBodyLayout } from "../config/bodySettings";
 import { uploadImageToSupabase } from "../lib/uploadImage";
 import { useEditorStore } from "../store/editorStore";
 import {
@@ -26,6 +31,7 @@ import {
   SectionSettings,
   SelectedElement,
   ServiceItem,
+  SizeValue,
 } from "../types/portfolio";
 import {
   getElementSettings,
@@ -37,6 +43,7 @@ import {
   Button,
   Checkbox,
   Field,
+  Input,
   NativeSelect,
   Stack,
   Tabs,
@@ -94,6 +101,7 @@ export function PropertiesPanel() {
       updateCollectionItem: state.updateCollectionItem,
       updateCustomLayer: state.updateCustomLayer,
       updateElementSettings: state.updateElementSettings,
+      updatePortfolioSettings: state.updatePortfolioSettings,
       updateSection: state.updateSection,
       updateSectionContent: state.updateSectionContent,
       updateSectionImage: state.updateSectionImage,
@@ -156,6 +164,21 @@ export function PropertiesPanel() {
   }
 
   if (selected.kind === "body") {
+    const bodyLayout = resolveBodyLayout(portfolio.settings.bodyLayout);
+    const breakpointWidths = resolveBreakpointWidths(
+      portfolio.settings.breakpointWidths,
+    );
+    const updateBreakpointWidth = (
+      mode: "tablet" | "mobile",
+      value?: number,
+    ) => {
+      store.updatePortfolioSettings({
+        breakpointWidths: resolveBreakpointWidths({
+          ...breakpointWidths,
+          [mode]: value ?? defaultBreakpointWidths[mode],
+        }),
+      });
+    };
     return (
       <Stack
         bg="bg"
@@ -177,6 +200,47 @@ export function PropertiesPanel() {
           Body contains all visible portfolio sections. Select a child section
           to edit its layout and styles.
         </Text>
+        <Stack gap={4} pt={2}>
+          <Text color="fg" fontWeight="semibold">
+            Layout
+          </Text>
+          <ElementLayoutControls
+            settings={bodyLayout}
+            onChange={(updates) =>
+              store.updatePortfolioSettings({
+                bodyLayout: { ...bodyLayout, ...updates },
+              })
+            }
+          />
+        </Stack>
+        <Stack gap={4} pt={2}>
+          <Text color="fg" fontWeight="semibold">
+            Breakpoint widths
+          </Text>
+          <Text color="fg.muted" fontSize="xs">
+            Desktop always follows the full viewport width. Tablet cannot be
+            narrower than Mobile, and Mobile has a minimum width of 240px.
+          </Text>
+          <Field.Root>
+            <Field.Label>Desktop width</Field.Label>
+            <Input value="100vw" readOnly aria-readonly="true" />
+            <Field.HelperText>
+              Desktop always uses 100% of the viewport width.
+            </Field.HelperText>
+          </Field.Root>
+          <NumberInput
+            label="Tablet width (px)"
+            value={breakpointWidths.tablet}
+            min={breakpointWidths.mobile}
+            onChange={(value) => updateBreakpointWidth("tablet", value)}
+          />
+          <NumberInput
+            label="Mobile width (px)"
+            value={breakpointWidths.mobile}
+            min={240}
+            onChange={(value) => updateBreakpointWidth("mobile", value)}
+          />
+        </Stack>
       </Stack>
     );
   }
@@ -341,7 +405,14 @@ export function PropertiesPanel() {
             <PropertyGroup title="Content" defaultOpen>
               <TextAreaInput
                 label={selected.label}
-                value={String(section.content[selected.field] || "")}
+                value={String(
+                  section.content[selected.field] ||
+                    (section.type === "projects" &&
+                    selected.field === "description"
+                      ? section.content.subtitle
+                      : "") ||
+                    "",
+                )}
                 limit={selected.limit}
                 onChange={(value) =>
                   store.updateSectionContent(
@@ -535,7 +606,10 @@ export function PropertiesPanel() {
 
           {selected.kind === "section" && (
             <Stack gap={0}>
-              <PropertyGroup title="Layout" defaultOpen>
+              <PropertyGroup
+                title="Layout"
+                defaultOpen={section.type !== "custom"}
+              >
                 <SectionLayoutControls
                   section={section}
                   onChange={(updates) =>
@@ -608,6 +682,46 @@ export function PropertiesPanel() {
                   </NativeSelect.Root>
                 </Field.Root>
               </PropertyGroup>
+              {section.type === "custom" && (
+                <PropertyGroup title="Sizing" defaultOpen>
+                  <SizeInput
+                    label="Width"
+                    value={resolvedSizeValue(
+                      section.settings.width,
+                      computedBoxModel?.width,
+                    )}
+                    onChange={(width) =>
+                      store.updateSection(section.id, {
+                        settings: { ...section.settings, width },
+                      })
+                    }
+                  />
+                  <SizeInput
+                    label="Height"
+                    value={resolvedSizeValue(
+                      section.settings.height,
+                      computedBoxModel?.height,
+                    )}
+                    onChange={(height) =>
+                      store.updateSection(section.id, {
+                        settings: { ...section.settings, height },
+                      })
+                    }
+                  />
+                  <SizeInput
+                    label="Minimum height"
+                    value={resolvedSizeValue(
+                      section.settings.minHeight,
+                      computedBoxModel?.minHeight,
+                    )}
+                    onChange={(minHeight) =>
+                      store.updateSection(section.id, {
+                        settings: { ...section.settings, minHeight },
+                      })
+                    }
+                  />
+                </PropertyGroup>
+              )}
               <PropertyGroup title="Color">
                 <ColorInput
                   label="Background color"
@@ -1009,12 +1123,12 @@ function ElementStyleControls({
         <PropertyGroup title="Size">
           <SizeInput
             label="Width"
-            value={settings.width}
+            value={resolvedSizeValue(settings.width, computedBoxModel?.width)}
             onChange={(width) => onChange({ width })}
           />
           <SizeInput
             label="Height"
-            value={settings.height}
+            value={resolvedSizeValue(settings.height, computedBoxModel?.height)}
             onChange={(height) => onChange({ height })}
           />
           <label className="toggle-line">
@@ -1511,12 +1625,18 @@ function paletteSwatches(palette: ColorPalette) {
   );
 }
 
+function resolvedSizeValue(saved?: SizeValue, computed?: number): SizeValue | undefined {
+  if (saved?.value !== undefined) return saved;
+  return computed !== undefined ? { value: computed, unit: "px" } : undefined;
+}
+
 function legacySectionMargin(settings: SectionSettings): BoxSpacing {
   return {
     top: settings.margin?.top ?? settings.marginTop,
     right: settings.margin?.right,
     bottom: settings.margin?.bottom ?? settings.marginBottom,
     left: settings.margin?.left,
+    unit: settings.margin?.unit || "px",
   };
 }
 
@@ -1526,6 +1646,7 @@ function legacySectionPadding(settings: SectionSettings): BoxSpacing {
     right: settings.padding?.right ?? settings.paddingInline,
     bottom: settings.padding?.bottom ?? settings.paddingBottom,
     left: settings.padding?.left ?? settings.paddingInline,
+    unit: settings.padding?.unit || "px",
   };
 }
 

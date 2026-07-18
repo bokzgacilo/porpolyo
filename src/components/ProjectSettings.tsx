@@ -17,6 +17,7 @@ import {
   ExternalLink,
   FileJson,
   ImagePlus,
+  Keyboard,
   Link2,
   Save,
   Search,
@@ -368,6 +369,35 @@ export function ProjectSettings({
               />
             </SimpleGrid>
           </SettingsSection>
+          <SettingsSection icon={<Keyboard size={18} />} title="Keyboard Shortcuts">
+            <HStack justify="space-between" align="start" gap="4">
+              <Text color="fg.muted" fontSize="sm">
+                Shortcut customization is coming later. The current bindings are
+                read-only.
+              </Text>
+              <Text
+                flexShrink={0}
+                px="2"
+                py="1"
+                rounded="sm"
+                bg="bg.muted"
+                color="fg.muted"
+                fontSize="xs"
+                fontWeight="semibold"
+              >
+                Read-only
+              </Text>
+            </HStack>
+            <SimpleGrid columns={{ base: 1, md: 2 }} gap="2">
+              <ShortcutRow action="Zoom in" keys="⌘/Ctrl/Alt + +" />
+              <ShortcutRow action="Zoom out" keys="⌘/Ctrl/Alt + −" />
+              <ShortcutRow action="Pan canvas" keys="Space + drag" />
+              <ShortcutRow action="Deselect element" keys="Esc" />
+              <ShortcutRow action="Duplicate element" keys="⌘/Ctrl + D" />
+              <ShortcutRow action="Remove element" keys="Delete / Backspace" />
+              <ShortcutRow action="Bold selected text" keys="⌘/Ctrl + B" />
+            </SimpleGrid>
+          </SettingsSection>
         </Grid>
       )}
 
@@ -385,6 +415,39 @@ function SettingsSection({ icon, title, children }: { icon: React.ReactNode; tit
       </HStack>
       {children}
     </Stack>
+  );
+}
+
+function ShortcutRow({ action, keys }: { action: string; keys: string }) {
+  return (
+    <HStack
+      justify="space-between"
+      gap="3"
+      minW={0}
+      px="3"
+      py="2.5"
+      rounded="md"
+      border="1px solid"
+      borderColor="border"
+      bg="bg.subtle"
+    >
+      <Text fontSize="sm">{action}</Text>
+      <Box
+        as="kbd"
+        flexShrink={0}
+        px="2"
+        py="1"
+        rounded="sm"
+        border="1px solid"
+        borderColor="border"
+        bg="bg"
+        color="fg.muted"
+        fontFamily="mono"
+        fontSize="xs"
+      >
+        {keys}
+      </Box>
+    </HStack>
   );
 }
 

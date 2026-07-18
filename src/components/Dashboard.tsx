@@ -10,6 +10,8 @@ import {
   Heading,
   HStack,
   Icon,
+  Menu,
+  Portal,
   SimpleGrid,
   Skeleton,
   Stack,
@@ -20,6 +22,7 @@ import {
   Eye,
   FolderPlus,
   LayoutGrid,
+  LogOut,
   Pencil,
   Plus,
   Settings as SettingsIcon,
@@ -38,6 +41,7 @@ type DashboardProps = {
   portfolios: Portfolio[];
   loading: boolean;
   onNew: () => void;
+  onLogout: () => void | Promise<void>;
   onOpen: (item: Portfolio, target: OpenTarget) => void;
 };
 
@@ -82,6 +86,7 @@ export function Dashboard({
   portfolios,
   loading,
   onNew,
+  onLogout,
   onOpen,
 }: DashboardProps) {
   const displayName =
@@ -137,10 +142,48 @@ export function Dashboard({
                 </Box>
               </Button>
               {authUser && (
-                <Avatar.Root size="sm">
-                  <Avatar.Fallback name={displayName} />
-                  <Avatar.Image src={avatarUrl} alt={displayName} />
-                </Avatar.Root>
+                <Menu.Root positioning={{ placement: "bottom-end" }}>
+                  <Menu.Trigger asChild>
+                    <Button
+                      aria-label={`Open account menu for ${displayName}`}
+                      variant="ghost"
+                      minW="auto"
+                      h="auto"
+                      p={0}
+                      rounded="full"
+                    >
+                      <Avatar.Root size="sm">
+                        <Avatar.Fallback name={displayName} />
+                        <Avatar.Image src={avatarUrl} alt={displayName} />
+                      </Avatar.Root>
+                    </Button>
+                  </Menu.Trigger>
+                  <Portal>
+                    <Menu.Positioner>
+                      <Menu.Content minW="56">
+                        <Box px={3} py={2}>
+                          <Text fontWeight="medium" lineClamp={1}>
+                            {displayName}
+                          </Text>
+                          {authUser.email && displayName !== authUser.email && (
+                            <Text fontSize="sm" color="fg.muted" lineClamp={1}>
+                              {authUser.email}
+                            </Text>
+                          )}
+                        </Box>
+                        <Menu.Separator />
+                        <Menu.Item
+                          value="logout"
+                          colorPalette="red"
+                          onSelect={() => void onLogout()}
+                        >
+                          <LogOut size={16} />
+                          Log out
+                        </Menu.Item>
+                      </Menu.Content>
+                    </Menu.Positioner>
+                  </Portal>
+                </Menu.Root>
               )}
             </HStack>
           </Flex>

@@ -8,13 +8,8 @@ import {
 } from "@chakra-ui/react";
 import { ArrowLeft, UploadCloud } from "lucide-react";
 import type { Portfolio, PreviewMode } from "../types/portfolio";
+import { breakpointWidth } from "../config/breakpointSettings";
 import { PortfolioPreview } from "./PortfolioPreview";
-
-const previewWidths: Record<PreviewMode, string> = {
-  desktop: "1220px",
-  tablet: "768px",
-  mobile: "390px",
-};
 
 export function PortfolioPreviewPage({
   portfolio,
@@ -29,10 +24,13 @@ export function PortfolioPreviewPage({
   onBack: () => void;
   onPublish: () => void;
 }) {
-  const previewWidth = previewWidths[previewMode];
+  const previewWidth = breakpointWidth(
+    previewMode,
+    portfolio.settings.breakpointWidths,
+  );
 
   return (
-    <Box minH="100svh" bg="bg.subtle" pt="64px">
+    <Box h="100dvh" overflow="hidden" bg="bg.subtle" pt="64px">
       <Flex
         as="header"
         position="fixed"
@@ -80,10 +78,19 @@ export function PortfolioPreviewPage({
         </HStack>
       </Flex>
 
-      <Box minH="calc(100svh - 64px)" overflowX="auto" p={{ base: 3, md: 6 }}>
+      <Box
+        h="calc(100dvh - 64px)"
+        overflow="auto"
+        p={{ base: 3, md: 6 }}
+      >
         <Box
+          className="preview-device-frame"
           width={previewWidth}
           minWidth={previewWidth}
+          h="full"
+          minH="full"
+          display="flex"
+          flexDirection="column"
           mx="auto"
           bg="bg"
           boxShadow="xl"

@@ -476,6 +476,33 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
 }
 
 function TemplatePreview({ palette, templateId }: { palette: (typeof palettes)[number]; templateId: string }) {
+  if (templateId === "blank") {
+    return (
+      <Box
+        bg={palette.background}
+        p={4}
+        h="48"
+        borderBottom="1px solid"
+        borderColor="border"
+        aria-hidden="true"
+      >
+        <Flex
+          h="full"
+          align="center"
+          justify="center"
+          border="1px dashed"
+          borderColor={palette.border}
+          bg={palette.surface}
+          rounded="lg"
+        >
+          <Stack align="center" gap={2} color={palette.muted}>
+            <LayoutTemplate size={28} />
+            <Text fontSize="xs" fontWeight="medium">Empty editable section</Text>
+          </Stack>
+        </Flex>
+      </Box>
+    );
+  }
   return (
     <Box bg={palette.background} p={4} h="48" borderBottom="1px solid" borderColor="border" aria-hidden="true">
       <Box h="full" border="1px solid" borderColor={palette.border} rounded={templateId === "neo-brutal" ? "none" : "lg"} bg={palette.surface} overflow="hidden">

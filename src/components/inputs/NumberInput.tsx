@@ -9,10 +9,12 @@ import { useEffect, useState } from "react";
 type NumberInputProps = {
   label: string;
   value?: number;
+  min?: number;
+  max?: number;
   onChange: (value: number | undefined) => void;
 };
 
-export function NumberInput({ label, value, onChange }: NumberInputProps) {
+export function NumberInput({ label, value, min, max, onChange }: NumberInputProps) {
   const externalValue = value?.toString() ?? "";
   const [draft, setDraft] = useState(externalValue);
 
@@ -21,7 +23,12 @@ export function NumberInput({ label, value, onChange }: NumberInputProps) {
   const commit = () => {
     if (draft === externalValue) return;
     const parsed = draft === "" ? undefined : Number(draft);
-    if (parsed === undefined || Number.isFinite(parsed)) onChange(parsed);
+    if (parsed === undefined) {
+      onChange(undefined);
+      return;
+    }
+    if (!Number.isFinite(parsed)) return;
+    onChange(Math.min(Math.max(parsed, min ?? -Infinity), max ?? Infinity));
   };
 
   return (
@@ -32,6 +39,8 @@ export function NumberInput({ label, value, onChange }: NumberInputProps) {
         w="full"
         size="xs"
         value={draft}
+        min={min}
+        max={max}
         onValueChange={(details) => setDraft(details.value)}
       >
         <NumberInputControl />

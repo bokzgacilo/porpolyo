@@ -4,10 +4,12 @@
   "version": "0.1.0-alpha.1",
   "type": "module",
   "scripts": {
-    "dev": "next dev --hostname 127.0.0.1",
+    "dev": "concurrently --kill-others \"npm run dev:next\" \"npm run dev:caddy\"",
+    "dev:next": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev:caddy": "caddy run --config Caddyfile"
   },
   "dependencies": {
     "@chakra-ui/react": "^3.36.0",
@@ -35,6 +37,7 @@
     "@types/node": "^20.14.10",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "concurrently": "^10.0.3",
     "typescript": "^5.5.3"
   }
 }

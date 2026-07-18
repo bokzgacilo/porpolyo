@@ -2,6 +2,21 @@ import { ColorPalette, PortfolioTemplate } from "../types/portfolio";
 
 export const templates: PortfolioTemplate[] = [
   {
+    id: "blank",
+    name: "Blank Canvas",
+    thumbnail: "An empty section ready for your own layers",
+    description: "Start with one empty section and build the layout yourself using div, text, and image layers.",
+    supportedSections: ["custom", "projects", "certifications", "services", "about"],
+    sectionVariants: {},
+    defaultPaletteId: "blue-cyan",
+    typography: "Unstyled system typography",
+    spacing: "Neutral editable spacing",
+    borders: "No template borders",
+    cards: "No predefined cards",
+    buttons: "No predefined buttons",
+    imageShapes: "No predefined image shape"
+  },
+  {
     id: "neo-brutal",
     name: "Neo-Brutalism",
     thumbnail: "Bold borders, offset shadows, loud calls to action",

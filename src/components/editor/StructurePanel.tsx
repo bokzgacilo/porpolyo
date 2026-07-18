@@ -28,6 +28,7 @@ import {
   customLayerIdFromSelection,
   getSectionLayers,
   isCollectionSection,
+  nativeContainerLayerIdFromSelection,
 } from "./layerHelpers";
 import { findCustomLayer } from "../../utils/customLayers";
 import { LayerTree } from "./LayerTree";
@@ -93,7 +94,7 @@ export function StructurePanel({
   onRenameSection: (section: PortfolioSection) => void;
   onToggleSectionLock: (section: PortfolioSection) => void;
   onAddSection: (
-    type: "projects" | "certifications" | "services" | "about",
+    type: "custom" | "projects" | "certifications" | "services" | "about",
   ) => void;
   onAddCollectionItem: (sectionId: string) => void;
   onAddCustomLayer: (
@@ -117,7 +118,7 @@ export function StructurePanel({
   onMoveCustomLayerToContainer: (
     sectionId: string,
     activeId: string,
-    parentLayerId: string,
+    parentLayerId?: string,
   ) => void;
   onSelect: (selection: SelectedElement) => void;
   history: EditorHistoryEntry[];
@@ -137,6 +138,8 @@ export function StructurePanel({
     : undefined;
   const customLayerParentId =
     selectedCustomLayer?.type === "div" ? selectedCustomLayer.id : undefined;
+  const templateLayerParentId = nativeContainerLayerIdFromSelection(selected);
+  const insertionParentId = customLayerParentId || templateLayerParentId;
   const layers = useMemo(
     () =>
       selectedSection ? getSectionLayers(selectedSection, sections) : [],
@@ -179,7 +182,7 @@ export function StructurePanel({
     [onReorderCustomLayers, selectedSectionId],
   );
   const moveCustomLayer = useCallback(
-    (activeId: string, parentLayerId: string) => {
+    (activeId: string, parentLayerId?: string) => {
       if (selectedSectionId)
         onMoveCustomLayerToContainer(
           selectedSectionId,
@@ -306,14 +309,14 @@ export function StructurePanel({
             <Text color="fg" fontWeight="semibold">
               Add section
             </Text>
-            {(["projects", "certifications", "services", "about"] as const).map(
+            {(["custom", "projects", "certifications", "services", "about"] as const).map(
               (type) => (
                 <Button
                   key={type}
                   onClick={() => onAddSection(type)}
                   variant="outline"
                 >
-                  <LuPlus size={16} /> {type}
+                  <LuPlus size={16} /> {type === "custom" ? "Blank section" : type}
                 </Button>
               ),
             )}
@@ -344,8 +347,8 @@ export function StructurePanel({
                       <IconButton
                         aria-label="Add layer"
                         title={
-                          customLayerParentId
-                            ? `Add inside ${selectedCustomLayer?.name}`
+                          insertionParentId
+                            ? `Add inside ${selectedCustomLayer?.name || selected?.kind === "layer" && selected.label}`
                             : "Add layer to section"
                         }
                         size="xs"
@@ -362,7 +365,7 @@ export function StructurePanel({
                               onAddCustomLayer(
                                 selectedSection.id,
                                 "div",
-                                customLayerParentId,
+                                insertionParentId,
                               )
                             }
                           >
@@ -374,7 +377,7 @@ export function StructurePanel({
                               onAddCustomLayer(
                                 selectedSection.id,
                                 "text",
-                                customLayerParentId,
+                                insertionParentId,
                               )
                             }
                           >
@@ -386,7 +389,7 @@ export function StructurePanel({
                               onAddCustomLayer(
                                 selectedSection.id,
                                 "image",
-                                customLayerParentId,
+                                insertionParentId,
                               )
                             }
                           >
@@ -400,8 +403,9 @@ export function StructurePanel({
               </HStack>
             </HStack>
             <Text px="1" color="fg.muted" fontSize="xs">
-              Drag a custom layer onto a Div or template container to nest it.
-              Template containers stay protected from deletion.
+              Drag the grip onto a section or Div row to move an element
+              inside. Drop it on another element row to reorder it at that
+              level.
             </Text>
             {selectedSection && (
               <LayerTree
