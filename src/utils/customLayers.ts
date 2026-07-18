@@ -134,7 +134,15 @@ export function moveCustomLayer(
       over.id,
     );
   }
-  return insertBeforeCustomLayer(withoutActive, active, over.id);
+  const overCustomParentId = findCustomLayerParentId(current, over.id);
+  return insertBeforeCustomLayer(
+    withoutActive,
+    {
+      ...active,
+      parentLayerId: overCustomParentId ? undefined : over.parentLayerId,
+    },
+    over.id,
+  );
 }
 
 export function moveCustomLayerToNativeContainer(

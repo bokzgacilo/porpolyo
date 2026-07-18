@@ -10,6 +10,8 @@ export type SectionLayoutDefaults = Pick<
   | "gridColumns"
   | "gridGapX"
   | "gridGapY"
+  | "gridAlignItems"
+  | "gridJustifyContent"
   | "stackDirection"
   | "stackAlign"
   | "stackJustify"
@@ -38,6 +40,22 @@ export const stackJustifyOptions = [
   { label: "Space evenly", value: "space-evenly" },
 ] as const;
 
+export const gridAlignItemsOptions = [
+  { label: "Stretch", value: "stretch" },
+  { label: "Start", value: "start" },
+  { label: "Center", value: "center" },
+  { label: "End", value: "end" },
+] as const;
+
+export const gridJustifyContentOptions = [
+  { label: "Start", value: "start" },
+  { label: "Center", value: "center" },
+  { label: "End", value: "end" },
+  { label: "Space between", value: "space-between" },
+  { label: "Space around", value: "space-around" },
+  { label: "Space evenly", value: "space-evenly" },
+] as const;
+
 const stackDefaults: SectionLayoutDefaults = {
   layoutMode: "stack",
   stackDirection: "column",
@@ -61,6 +79,8 @@ const defaultsBySection: Record<SectionType, SectionLayoutDefaults> = {
     gridColumns: 2,
     gridGapX: 48,
     gridGapY: 32,
+    gridAlignItems: "center",
+    gridJustifyContent: "start",
     layoutWrap: true,
   },
   projects: stackDefaults,
@@ -75,6 +95,8 @@ const defaultsBySection: Record<SectionType, SectionLayoutDefaults> = {
     gridColumns: 2,
     gridGapX: 34,
     gridGapY: 24,
+    gridAlignItems: "stretch",
+    gridJustifyContent: "start",
     layoutWrap: true,
   },
   footer: {
@@ -82,6 +104,8 @@ const defaultsBySection: Record<SectionType, SectionLayoutDefaults> = {
     gridColumns: 3,
     gridGapX: 14,
     gridGapY: 14,
+    gridAlignItems: "stretch",
+    gridJustifyContent: "start",
     layoutWrap: true,
   },
 };
@@ -98,6 +122,8 @@ export function getSectionLayoutDefaults(
       gridColumns: 2,
       gridGapX: 16,
       gridGapY: 16,
+      gridAlignItems: "stretch",
+      gridJustifyContent: "start",
       layoutWrap: true,
     };
   }

@@ -21,11 +21,14 @@ import { resolveBodyLayout } from "../config/bodySettings";
 import { uploadImageToSupabase } from "../lib/uploadImage";
 import { useEditorStore } from "../store/editorStore";
 import {
+  AnchorContent,
   BoxSpacing,
+  BorderRadiusValues,
   CertificationItem,
   ColorPalette,
   ElementSettings,
   ImageAsset,
+  Portfolio,
   PortfolioSection,
   ProjectItem,
   SectionSettings,
@@ -38,6 +41,9 @@ import {
   selectedElementKey,
 } from "../utils/elementSettings";
 import { findCustomLayer } from "../utils/customLayers";
+import { resolveHeaderNavigationLinks } from "../utils/headerNavigation";
+import { getHeroActionContent } from "../utils/heroContent";
+import { contentValue } from "../utils/contentFields";
 import {
   Box,
   Button,
@@ -53,7 +59,6 @@ import {
   LuChevronDown,
   LuChevronRight,
   LuClipboardPen,
-  LuImagePlus,
   LuPaintbrush,
   LuPlus,
   LuTrash2,
@@ -69,9 +74,12 @@ import {
   type ComputedLayoutStructure,
 } from "./boxmodel";
 import {
+  BorderRadiusInput,
+  BorderWidthInput,
   BoxShadowInput,
   ColorInput,
   FontFamilyPicker,
+  ImageUploadDropzone,
   InputField,
   normalizeColor,
   NumberInput,
@@ -86,8 +94,10 @@ import {
   customLayerIdFromSelection,
   isNativeContainerLayerId,
 } from "./editor/layerHelpers";
+import { useEditorControlSize } from "./editor/EditorSizeContext";
 
 export function PropertiesPanel() {
+  const controlSize = useEditorControlSize();
   const { portfolio, selected } = useEditorStore(
     useShallow((state) => ({
       portfolio: state.portfolio,
@@ -110,7 +120,8 @@ export function PropertiesPanel() {
   const computedBoxModel = useComputedBoxModel(selected);
   const computedLayoutStructure = useComputedLayoutStructure(selected);
   const palette = useMemo(
-    () => palettes.find((item) => item.id === portfolio?.paletteId) || palettes[0],
+    () =>
+      palettes.find((item) => item.id === portfolio?.paletteId) || palettes[0],
     [portfolio?.paletteId],
   );
   const swatches = useMemo(() => paletteSwatches(palette), [palette]);
@@ -223,7 +234,12 @@ export function PropertiesPanel() {
           </Text>
           <Field.Root>
             <Field.Label>Desktop width</Field.Label>
-            <Input value="100vw" readOnly aria-readonly="true" />
+            <Input
+              size={controlSize}
+              value="100vw"
+              readOnly
+              aria-readonly="true"
+            />
             <Field.HelperText>
               Desktop always uses 100% of the viewport width.
             </Field.HelperText>
@@ -268,6 +284,7 @@ export function PropertiesPanel() {
   const elementSettings = selectedKey
     ? getElementSettings(section, selectedKey)
     : undefined;
+  const anchorContent = getAnchorContent(portfolio, section, selected);
   const displayedLayoutStructure =
     selected.kind === "section"
       ? configuredSectionLayout(section, computedLayoutStructure)
@@ -280,6 +297,10 @@ export function PropertiesPanel() {
     legacySectionPadding(section.settings),
     computedBoxModel?.padding,
   );
+  const showStructureTab = portfolio.settings.editor?.showStructureTab ?? true;
+  const showBoxModelTab = portfolio.settings.editor?.showBoxModelTab ?? true;
+  const showInspectorTabs = showStructureTab || showBoxModelTab;
+  const defaultInspectorTab = showStructureTab ? "structure" : "box-model";
   const updateSelectedElement = (updates: Partial<ElementSettings>) => {
     if (selectedKey)
       store.updateElementSettings(section.id, selectedKey, updates);
@@ -302,21 +323,27 @@ export function PropertiesPanel() {
       <Text px={4} pt={4} color="fg" fontWeight="semibold">
         Properties
       </Text>
-      <Tabs.Root defaultValue="content" variant="line">
+      <Tabs.Root
+        key={selectedCustomLayer ? "custom-content-only" : "standard-inspector"}
+        defaultValue="content"
+        variant="line"
+      >
         <Tabs.List>
           <Tabs.Trigger flex={1} value="content">
             <LuClipboardPen />
             Content
           </Tabs.Trigger>
-          <Tabs.Trigger flex={1} value="styling">
-            <LuPaintbrush />
-            Styling
-          </Tabs.Trigger>
+          {!selectedCustomLayer && (
+            <Tabs.Trigger flex={1} value="styling">
+              <LuPaintbrush />
+              Styling
+            </Tabs.Trigger>
+          )}
         </Tabs.List>
 
         <Tabs.Content value="content" p={0}>
           {selected.kind === "section" && (
-            <PropertyGroup title="Section" defaultOpen>
+            <ContentGroup title="Section">
               <InputField
                 label="Internal Section Label"
                 value={section.label}
@@ -330,7 +357,7 @@ export function PropertiesPanel() {
                   <InputField
                     label="Logo / Name"
                     value={String(
-                      section.content.logoText || portfolio.owner.fullName,
+                      contentValue(section, "logoText") || portfolio.owner.fullName,
                     )}
                     limit={60}
                     onChange={(value) =>
@@ -339,7 +366,7 @@ export function PropertiesPanel() {
                   />
                   <InputField
                     label="Contact Button"
-                    value={String(section.content.contactButton || "Contact")}
+                    value={String(contentValue(section, "contactButton") || "Contact")}
                     limit={40}
                     onChange={(value) =>
                       store.updateSectionContent(
@@ -356,7 +383,7 @@ export function PropertiesPanel() {
                   <TextInput
                     label="Footer name / logo"
                     value={String(
-                      section.content.logoText || portfolio.owner.fullName,
+                      contentValue(section, "logoText") || portfolio.owner.fullName,
                     )}
                     limit={60}
                     onChange={(value) =>
@@ -365,7 +392,7 @@ export function PropertiesPanel() {
                   />
                   <TextInput
                     label="Footer message"
-                    value={String(section.content.message || "")}
+                    value={String(contentValue(section, "message") || "")}
                     limit={160}
                     onChange={(value) =>
                       store.updateSectionContent(section.id, "message", value)
@@ -373,7 +400,7 @@ export function PropertiesPanel() {
                   />
                   <TextInput
                     label="Copyright text"
-                    value={String(section.content.copyright || "")}
+                    value={String(contentValue(section, "copyright") || "")}
                     limit={160}
                     onChange={(value) =>
                       store.updateSectionContent(section.id, "copyright", value)
@@ -398,37 +425,44 @@ export function PropertiesPanel() {
                 <Checkbox.Control />
                 <Checkbox.Label>Visible</Checkbox.Label>
               </Checkbox.Root>
-            </PropertyGroup>
+            </ContentGroup>
           )}
 
           {selected.kind === "text" && (
-            <PropertyGroup title="Content" defaultOpen>
-              <TextAreaInput
-                label={selected.label}
-                value={String(
-                  section.content[selected.field] ||
-                    (section.type === "projects" &&
-                    selected.field === "description"
-                      ? section.content.subtitle
-                      : "") ||
-                    "",
-                )}
-                limit={selected.limit}
-                onChange={(value) =>
-                  store.updateSectionContent(
-                    section.id,
-                    selected.field,
-                    value.slice(0, selected.limit),
-                  )
-                }
-              />
-            </PropertyGroup>
+            <ContentGroup title="Content">
+              {anchorContent ? (
+                <AnchorContentControls
+                  value={{ ...anchorContent, ...elementSettings?.anchor }}
+                  onChange={(anchor) => updateSelectedElement({ anchor })}
+                />
+              ) : (
+                <TextAreaInput
+                  label={selected.label}
+                  value={String(
+                    contentValue(section, selected.field) ||
+                      (section.type === "projects" &&
+                      selected.field === "description"
+                        ? contentValue(section, "subtitle")
+                        : "") ||
+                      "",
+                  )}
+                  limit={selected.limit}
+                  onChange={(value) =>
+                    store.updateSectionContent(
+                      section.id,
+                      selected.field,
+                      value.slice(0, selected.limit),
+                    )
+                  }
+                />
+              )}
+            </ContentGroup>
           )}
 
           {selected.kind === "layer" && (
             <Stack gap={0}>
               {selectedCustomLayer && (
-                <PropertyGroup title="Custom layer" defaultOpen>
+                <ContentGroup title="Custom layer">
                   <InputField
                     label="Layer name"
                     value={selectedCustomLayer.name}
@@ -477,7 +511,28 @@ export function PropertiesPanel() {
                       }
                     />
                   )}
-                </PropertyGroup>
+                </ContentGroup>
+              )}
+              {selectedCustomLayer && selectedIsContainer && (
+                <ContentGroup title="Layout">
+                  <ElementLayoutControls
+                    settings={elementSettings || {}}
+                    onChange={updateSelectedElement}
+                  />
+                </ContentGroup>
+              )}
+              {selectedCustomLayer && (
+                <ElementStyleControls
+                  selected={selected}
+                  settings={elementSettings || {}}
+                  fallbackColor={section.settings.textColor || palette.text}
+                  swatches={swatches}
+                  computedBoxModel={computedBoxModel}
+                  defaultFontFamily={templateFontFamily}
+                  includeText={selectedCustomLayer.type === "text"}
+                  collapsible={false}
+                  onChange={updateSelectedElement}
+                />
               )}
               {section.type === "header" &&
                 !selectedCustomLayer &&
@@ -490,7 +545,7 @@ export function PropertiesPanel() {
                   />
                 )}
               {!selectedCustomLayer && getNestedImageTarget(selected) && (
-                <PropertyGroup title="Image" defaultOpen>
+                <ContentGroup title="Image">
                   <NestedImageInspector
                     selected={selected}
                     section={section}
@@ -501,12 +556,21 @@ export function PropertiesPanel() {
                       })
                     }
                   />
-                </PropertyGroup>
+                </ContentGroup>
+              )}
+              {!selectedCustomLayer && anchorContent && (
+                <ContentGroup title="Link content">
+                  <AnchorContentControls
+                    value={{ ...anchorContent, ...elementSettings?.anchor }}
+                    onChange={(anchor) => updateSelectedElement({ anchor })}
+                  />
+                </ContentGroup>
               )}
               {!(
                 section.type === "header" && selected.layerId === "navigation"
               ) &&
                 !selectedCustomLayer &&
+                !anchorContent &&
                 !getNestedImageTarget(selected) && (
                   <Text p={4} color="fg.muted" fontSize="sm">
                     This layer has styling controls only.
@@ -516,10 +580,10 @@ export function PropertiesPanel() {
           )}
 
           {selected.kind === "image" && (
-            <PropertyGroup title="Image" defaultOpen>
+            <ContentGroup title="Image">
               <ImageInspector
                 image={
-                  section.content[selected.field] as ImageAsset | undefined
+                  contentValue<ImageAsset>(section, selected.field)
                 }
                 slot={selected.slot}
                 label={selected.label}
@@ -528,13 +592,13 @@ export function PropertiesPanel() {
                   store.updateSectionImage(section.id, selected.field, image)
                 }
               />
-            </PropertyGroup>
+            </ContentGroup>
           )}
 
           {selected.kind === "project" && (
             <CollectionInspector
               type="project"
-              item={(section.content.items as ProjectItem[]).find(
+              item={(contentValue<ProjectItem[]>(section, "items") || []).find(
                 (item) => item.id === selected.itemId,
               )}
               onAdd={() => store.addCollectionItem(section.id)}
@@ -550,7 +614,7 @@ export function PropertiesPanel() {
           {selected.kind === "certification" && (
             <CollectionInspector
               type="certification"
-              item={(section.content.items as CertificationItem[]).find(
+              item={(contentValue<CertificationItem[]>(section, "items") || []).find(
                 (item) => item.id === selected.itemId,
               )}
               onAdd={() => store.addCollectionItem(section.id)}
@@ -566,7 +630,7 @@ export function PropertiesPanel() {
           {selected.kind === "service" && (
             <CollectionInspector
               type="service"
-              item={(section.content.items as ServiceItem[]).find(
+              item={(contentValue<ServiceItem[]>(section, "items") || []).find(
                 (item) => item.id === selected.itemId,
               )}
               onAdd={() => store.addCollectionItem(section.id)}
@@ -581,28 +645,44 @@ export function PropertiesPanel() {
         </Tabs.Content>
 
         <Tabs.Content value="styling" p={0}>
-          <Tabs.Root defaultValue="structure" variant="line">
-            <Tabs.List>
-              <Tabs.Trigger flex={1} value="structure">
-                Structure
-              </Tabs.Trigger>
-              <Tabs.Trigger flex={1} value="box-model">
-                Box Model
-              </Tabs.Trigger>
-            </Tabs.List>
-            <Tabs.Content value="structure" p={0}>
-              <LayoutStructurePreview layout={displayedLayoutStructure} />
-            </Tabs.Content>
-            <Tabs.Content value="box-model" p={0}>
-              <BoxModelPreview
-                margin={sectionMargin}
-                padding={sectionPadding}
-                borderWidth={
-                  section.settings.borderWidth ?? computedBoxModel?.borderWidth
-                }
-              />
-            </Tabs.Content>
-          </Tabs.Root>
+          {showInspectorTabs && (
+            <Tabs.Root
+              key={`${showStructureTab}-${showBoxModelTab}`}
+              defaultValue={defaultInspectorTab}
+              variant="line"
+            >
+              <Tabs.List>
+                {showStructureTab && (
+                  <Tabs.Trigger flex={1} value="structure">
+                    Structure
+                  </Tabs.Trigger>
+                )}
+                {showBoxModelTab && (
+                  <Tabs.Trigger flex={1} value="box-model">
+                    Box Model
+                  </Tabs.Trigger>
+                )}
+              </Tabs.List>
+              {showStructureTab && (
+                <Tabs.Content value="structure" p={0}>
+                  <LayoutStructurePreview layout={displayedLayoutStructure} />
+                </Tabs.Content>
+              )}
+              {showBoxModelTab && (
+                <Tabs.Content value="box-model" p={0}>
+                  <BoxModelPreview
+                    margin={sectionMargin}
+                    padding={sectionPadding}
+                    borderWidth={
+                      section.settings.borderWidths?.top ??
+                      section.settings.borderWidth ??
+                      computedBoxModel?.borderWidth
+                    }
+                  />
+                </Tabs.Content>
+              )}
+            </Tabs.Root>
+          )}
 
           {selected.kind === "section" && (
             <Stack gap={0}>
@@ -620,7 +700,7 @@ export function PropertiesPanel() {
                 />
                 <Field.Root>
                   <Field.Label>Text alignment</Field.Label>
-                  <NativeSelect.Root>
+                  <NativeSelect.Root size={controlSize}>
                     <NativeSelect.Field
                       value={section.settings.alignment || "left"}
                       onChange={(event) =>
@@ -641,7 +721,7 @@ export function PropertiesPanel() {
                 </Field.Root>
                 <Field.Root>
                   <Field.Label>Section Spacing</Field.Label>
-                  <NativeSelect.Root>
+                  <NativeSelect.Root size={controlSize}>
                     <NativeSelect.Field
                       value={section.settings.spacing || "medium"}
                       onChange={(event) =>
@@ -662,7 +742,7 @@ export function PropertiesPanel() {
                 </Field.Root>
                 <Field.Root>
                   <Field.Label>Content Width</Field.Label>
-                  <NativeSelect.Root>
+                  <NativeSelect.Root size={controlSize}>
                     <NativeSelect.Field
                       value={section.settings.contentWidth || "standard"}
                       onChange={(event) =>
@@ -778,18 +858,24 @@ export function PropertiesPanel() {
                     })
                   }
                 />
-                <NumberInput
-                  label="Border Width"
-                  value={section.settings.borderWidth}
-                  onChange={(borderWidth) =>
+                <BorderWidthInput
+                  value={resolveBorderWidths(
+                    section.settings.borderWidths,
+                    section.settings.borderWidth,
+                  )}
+                  onChange={(borderWidths) =>
                     store.updateSection(section.id, {
-                      settings: { ...section.settings, borderWidth },
+                      settings: {
+                        ...section.settings,
+                        borderWidth: undefined,
+                        borderWidths,
+                      },
                     })
                   }
                 />
                 <Field.Root>
                   <Field.Label>Border Style</Field.Label>
-                  <NativeSelect.Root>
+                  <NativeSelect.Root size={controlSize}>
                     <NativeSelect.Field
                       value={section.settings.borderStyle || "none"}
                       onChange={(event) =>
@@ -809,12 +895,18 @@ export function PropertiesPanel() {
                     <NativeSelect.Indicator />
                   </NativeSelect.Root>
                 </Field.Root>
-                <NumberInput
-                  label="Border radius"
-                  value={section.settings.borderRadius}
-                  onChange={(borderRadius) =>
+                <BorderRadiusInput
+                  value={resolveBorderRadii(
+                    section.settings.borderRadii,
+                    section.settings.borderRadius,
+                  )}
+                  onChange={(borderRadii) =>
                     store.updateSection(section.id, {
-                      settings: { ...section.settings, borderRadius },
+                      settings: {
+                        ...section.settings,
+                        borderRadius: undefined,
+                        borderRadii,
+                      },
                     })
                   }
                 />
@@ -837,7 +929,7 @@ export function PropertiesPanel() {
             </Stack>
           )}
 
-          {selected.kind === "layer" && (
+          {selected.kind === "layer" && !selectedCustomLayer && (
             <Stack gap={0}>
               {selectedIsContainer && (
                 <PropertyGroup title="Layout" defaultOpen>
@@ -856,10 +948,9 @@ export function PropertiesPanel() {
                 defaultFontFamily={templateFontFamily}
                 includeSize={!getNestedImageTarget(selected)}
                 includeText={
-                  selectedCustomLayer?.type === "text" ||
-                  (section.type === "header" &&
+                  section.type === "header" &&
                     (selected.layerId === "navigation" ||
-                      selected.layerId.startsWith("navigation-link:")))
+                      selected.layerId.startsWith("navigation-link:"))
                 }
                 onChange={updateSelectedElement}
               />
@@ -931,17 +1022,18 @@ function ResponsiveNavigationControls({
   section: PortfolioSection;
   onChange: (field: string, value: string) => void;
 }) {
+  const controlSize = useEditorControlSize();
   return (
-    <PropertyGroup title="Responsive navigation" defaultOpen>
+    <ContentGroup title="Responsive navigation">
       <Text color="fg.muted" fontSize="xs">
         Desktop always uses text links.
       </Text>
       <Field.Root>
         <Field.Label>Tablet navigation</Field.Label>
-        <NativeSelect.Root>
+        <NativeSelect.Root size={controlSize}>
           <NativeSelect.Field
             value={
-              section.content.tabletNavigationMode === "menu" ? "menu" : "text"
+              contentValue(section, "tabletNavigationMode") === "menu" ? "menu" : "text"
             }
             onChange={(event) =>
               onChange("tabletNavigationMode", event.target.value)
@@ -955,10 +1047,10 @@ function ResponsiveNavigationControls({
       </Field.Root>
       <Field.Root>
         <Field.Label>Mobile navigation</Field.Label>
-        <NativeSelect.Root>
+        <NativeSelect.Root size={controlSize}>
           <NativeSelect.Field
             value={
-              section.content.mobileNavigationMode === "menu" ? "menu" : "text"
+              contentValue(section, "mobileNavigationMode") === "menu" ? "menu" : "text"
             }
             onChange={(event) =>
               onChange("mobileNavigationMode", event.target.value)
@@ -970,7 +1062,81 @@ function ResponsiveNavigationControls({
           <NativeSelect.Indicator />
         </NativeSelect.Root>
       </Field.Root>
-    </PropertyGroup>
+    </ContentGroup>
+  );
+}
+
+function ContentGroup({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Stack
+      px={4}
+      py={4}
+      gap={4}
+      borderBottom="1px solid"
+      borderBottomColor="border"
+    >
+      <Text fontWeight="semibold" color="fg">
+        {title}
+      </Text>
+      <Stack px={2} gap={4}>
+        {children}
+      </Stack>
+    </Stack>
+  );
+}
+
+function AnchorContentControls({
+  value,
+  onChange,
+}: {
+  value: AnchorContent;
+  onChange: (value: AnchorContent) => void;
+}) {
+  const controlSize = useEditorControlSize();
+  return (
+    <Stack gap={4}>
+      <TextInput
+        label="ID"
+        value={value.id || ""}
+        onChange={(id) => onChange({ ...value, id })}
+      />
+      <TextInput
+        label="Href"
+        value={value.href || ""}
+        onChange={(href) => onChange({ ...value, href })}
+      />
+      <Field.Root>
+        <Field.Label>Target</Field.Label>
+        <NativeSelect.Root size={controlSize}>
+          <NativeSelect.Field
+            value={value.target || "_self"}
+            onChange={(event) =>
+              onChange({
+                ...value,
+                target: event.currentTarget.value as AnchorContent["target"],
+              })
+            }
+          >
+            <option value="_self">Same frame (_self)</option>
+            <option value="_blank">New tab (_blank)</option>
+            <option value="_parent">Parent frame (_parent)</option>
+            <option value="_top">Top frame (_top)</option>
+          </NativeSelect.Field>
+          <NativeSelect.Indicator />
+        </NativeSelect.Root>
+      </Field.Root>
+      <TextInput
+        label="Label"
+        value={value.label || ""}
+        onChange={(label) => onChange({ ...value, label })}
+      />
+    </Stack>
   );
 }
 
@@ -1019,6 +1185,28 @@ function PropertyGroup({
   );
 }
 
+function ElementControlGroup({
+  title,
+  children,
+  collapsible,
+  defaultOpen = false,
+}: {
+  title: string;
+  children: React.ReactNode;
+  collapsible: boolean;
+  defaultOpen?: boolean;
+}) {
+  if (!collapsible) {
+    return <ContentGroup title={title}>{children}</ContentGroup>;
+  }
+
+  return (
+    <PropertyGroup title={title} defaultOpen={defaultOpen}>
+      {children}
+    </PropertyGroup>
+  );
+}
+
 function ElementStyleControls({
   selected,
   settings,
@@ -1028,6 +1216,7 @@ function ElementStyleControls({
   defaultFontFamily = "Inter, ui-sans-serif, system-ui, sans-serif",
   includeSize = true,
   includeText = false,
+  collapsible = true,
   onChange,
 }: {
   selected: SelectedElement;
@@ -1038,8 +1227,10 @@ function ElementStyleControls({
   defaultFontFamily?: string;
   includeSize?: boolean;
   includeText?: boolean;
+  collapsible?: boolean;
   onChange: (updates: Partial<ElementSettings>) => void;
 }) {
+  const controlSize = useEditorControlSize();
   const margin = resolveBoxSpacing(settings.margin, computedBoxModel?.margin);
   const padding = resolveBoxSpacing(
     settings.padding,
@@ -1049,7 +1240,11 @@ function ElementStyleControls({
   return (
     <Stack gap={0}>
       {includeText && (
-        <PropertyGroup title="Typography" defaultOpen>
+        <ElementControlGroup
+          title="Typography"
+          defaultOpen
+          collapsible={collapsible}
+        >
           <FontFamilyPicker
             value={settings.fontFamily}
             defaultFontFamily={defaultFontFamily}
@@ -1084,26 +1279,33 @@ function ElementStyleControls({
               onChange({ letterSpacing, letterSpacingUnit })
             }
           />
-          <label className="field">
-            <span>Text alignment</span>
-            <select
-              value={settings.textAlign || ""}
-              onChange={(event) =>
-                onChange({
-                  textAlign: (event.target.value ||
-                    undefined) as ElementSettings["textAlign"],
-                })
-              }
-            >
-              <option value="">Template default</option>
-              <option value="left">Left</option>
-              <option value="center">Center</option>
-              <option value="right">Right</option>
-            </select>
-          </label>
-        </PropertyGroup>
+          <Field.Root>
+            <Field.Label>Text alignment</Field.Label>
+            <NativeSelect.Root>
+              <NativeSelect.Field
+                value={settings.textAlign || ""}
+                onChange={(event) =>
+                  onChange({
+                    textAlign: (event.target.value ||
+                      undefined) as ElementSettings["textAlign"],
+                  })
+                }
+              >
+                <option value="">Template default</option>
+                <option value="left">Left</option>
+                <option value="center">Center</option>
+                <option value="right">Right</option>
+              </NativeSelect.Field>
+              <NativeSelect.Indicator />
+            </NativeSelect.Root>
+          </Field.Root>
+        </ElementControlGroup>
       )}
-      <PropertyGroup title="Color" defaultOpen={!includeText}>
+      <ElementControlGroup
+        title="Color"
+        defaultOpen={!includeText}
+        collapsible={collapsible}
+      >
         <ColorInput
           label="Text color"
           value={settings.color || ""}
@@ -1118,9 +1320,9 @@ function ElementStyleControls({
           swatches={swatches}
           onChange={(backgroundColor) => onChange({ backgroundColor })}
         />
-      </PropertyGroup>
+      </ElementControlGroup>
       {includeSize && (
-        <PropertyGroup title="Size">
+        <ElementControlGroup title="Size" collapsible={collapsible}>
           <SizeInput
             label="Width"
             value={resolvedSizeValue(settings.width, computedBoxModel?.width)}
@@ -1141,9 +1343,22 @@ function ElementStyleControls({
             />
             Span section width
           </label>
-        </PropertyGroup>
+        </ElementControlGroup>
       )}
-      <PropertyGroup title="Spacing">
+      <ElementControlGroup title="Child layout" collapsible={collapsible}>
+        <NumberInput
+          label="Order"
+          value={settings.order}
+          min={-999}
+          max={999}
+          onChange={(order) => onChange({ order })}
+        />
+        <Text color="fg.muted" fontSize="xs">
+          Controls this element&apos;s position when its parent uses Grid or
+          Stack. Lower numbers appear first.
+        </Text>
+      </ElementControlGroup>
+      <ElementControlGroup title="Spacing" collapsible={collapsible}>
         <BoxSpacingInput
           label="Margin"
           value={margin}
@@ -1154,8 +1369,8 @@ function ElementStyleControls({
           value={padding}
           onChange={(padding) => onChange({ padding })}
         />
-      </PropertyGroup>
-      <PropertyGroup title="Border & Shadow">
+      </ElementControlGroup>
+      <ElementControlGroup title="Border & Shadow" collapsible={collapsible}>
         <ColorInput
           label="Border color"
           value={settings.borderColor || ""}
@@ -1163,14 +1378,18 @@ function ElementStyleControls({
           swatches={swatches}
           onChange={(borderColor) => onChange({ borderColor })}
         />
-        <NumberInput
-          label="Border width"
-          value={settings.borderWidth}
-          onChange={(borderWidth) => onChange({ borderWidth })}
+        <BorderWidthInput
+          value={resolveBorderWidths(
+            settings.borderWidths,
+            settings.borderWidth,
+          )}
+          onChange={(borderWidths) =>
+            onChange({ borderWidth: undefined, borderWidths })
+          }
         />
         <Field.Root>
           <Field.Label>Border Style</Field.Label>
-          <NativeSelect.Root>
+          <NativeSelect.Root size={controlSize}>
             <NativeSelect.Field
               value={settings.borderStyle || "none"}
               onChange={(event) =>
@@ -1188,16 +1407,20 @@ function ElementStyleControls({
             <NativeSelect.Indicator />
           </NativeSelect.Root>
         </Field.Root>
-        <NumberInput
-          label="Border radius"
-          value={settings.borderRadius}
-          onChange={(borderRadius) => onChange({ borderRadius })}
+        <BorderRadiusInput
+          value={resolveBorderRadii(
+            settings.borderRadii,
+            settings.borderRadius,
+          )}
+          onChange={(borderRadii) =>
+            onChange({ borderRadius: undefined, borderRadii })
+          }
         />
         <BoxShadowInput
           value={settings.boxShadow}
           onChange={(boxShadow) => onChange({ boxShadow })}
         />
-      </PropertyGroup>
+      </ElementControlGroup>
     </Stack>
   );
 }
@@ -1215,6 +1438,7 @@ function ImageInspector({
   projectId: string;
   onChange: (image?: ImageAsset) => void;
 }) {
+  const controlSize = useEditorControlSize();
   const upload = async (file?: File) => {
     if (!file) return;
     try {
@@ -1242,15 +1466,11 @@ function ImageInspector({
 
   return (
     <Stack gap={4}>
-      <label className="upload-slot compact">
-        <LuImagePlus />
-        <span>{image ? "Replace image" : "Upload image"}</span>
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(event) => upload(event.target.files?.[0])}
-        />
-      </label>
+      <ImageUploadDropzone
+        compact
+        label={image ? "Replace image" : "Upload image"}
+        onUpload={upload}
+      />
       {image?.url && (
         <Box style={toImageFrameStyle(image)} maxW="full">
           <img
@@ -1281,7 +1501,7 @@ function ImageInspector({
           />
           <Field.Root>
             <Field.Label>Aspect Ratio</Field.Label>
-            <NativeSelect.Root size="xs">
+            <NativeSelect.Root size={controlSize}>
               <NativeSelect.Field
                 value={image.aspectRatio || defaultImageSettings.aspectRatio}
                 onChange={(event) =>
@@ -1305,7 +1525,7 @@ function ImageInspector({
 
           <Field.Root>
             <Field.Label>Crop Position</Field.Label>
-            <NativeSelect.Root size="xs">
+            <NativeSelect.Root size={controlSize}>
               <NativeSelect.Field
                 value={
                   image.objectPosition || defaultImageSettings.objectPosition
@@ -1325,7 +1545,7 @@ function ImageInspector({
           </Field.Root>
           <Field.Root>
             <Field.Label>Crop Position</Field.Label>
-            <NativeSelect.Root size="xs">
+            <NativeSelect.Root size={controlSize}>
               <NativeSelect.Field
                 value={image.shape || defaultImageSettings.shape}
                 onChange={(event) => {
@@ -1370,7 +1590,7 @@ function NestedImageInspector({
   onChange,
 }: {
   selected: Extract<SelectedElement, { kind: "layer" }>;
-  section: { content: Record<string, unknown> };
+  section: PortfolioSection;
   projectId: string;
   onChange: (
     itemId: string,
@@ -1380,7 +1600,7 @@ function NestedImageInspector({
 }) {
   const target = getNestedImageTarget(selected);
   if (!target) return null;
-  const items = (section.content.items || []) as Array<Record<string, unknown>>;
+  const items = contentValue<Array<Record<string, unknown>>>(section, "items") || [];
   const item = items.find((item) => item.id === target.itemId);
   const image = item?.[target.field] as ImageAsset | undefined;
 
@@ -1417,7 +1637,7 @@ function CollectionInspector({
   }
 
   return (
-    <PropertyGroup title="Content" defaultOpen>
+    <ContentGroup title="Content">
       <button onClick={onAdd}>
         <LuPlus /> Add {type}
       </button>
@@ -1546,7 +1766,7 @@ function CollectionInspector({
       <button className="danger" onClick={onDelete}>
         <LuTrash2 size={16} /> Delete {type}
       </button>
-    </PropertyGroup>
+    </ContentGroup>
   );
 }
 
@@ -1625,8 +1845,11 @@ function paletteSwatches(palette: ColorPalette) {
   );
 }
 
-function resolvedSizeValue(saved?: SizeValue, computed?: number): SizeValue | undefined {
-  if (saved?.value !== undefined) return saved;
+function resolvedSizeValue(
+  saved?: SizeValue,
+  computed?: number,
+): SizeValue | undefined {
+  if (saved?.unit === "fill" || saved?.value !== undefined) return saved;
   return computed !== undefined ? { value: computed, unit: "px" } : undefined;
 }
 
@@ -1648,6 +1871,115 @@ function legacySectionPadding(settings: SectionSettings): BoxSpacing {
     left: settings.padding?.left ?? settings.paddingInline,
     unit: settings.padding?.unit || "px",
   };
+}
+
+function resolveBorderWidths(
+  value: BoxSpacing | undefined,
+  legacyValue: number | undefined,
+): BoxSpacing {
+  if (value) return value;
+  if (legacyValue === undefined) return {};
+  return {
+    top: legacyValue,
+    right: legacyValue,
+    bottom: legacyValue,
+    left: legacyValue,
+    unit: "px",
+  };
+}
+
+function resolveBorderRadii(
+  value: BorderRadiusValues | undefined,
+  legacyValue: number | undefined,
+): BorderRadiusValues {
+  if (value) return value;
+  if (legacyValue === undefined) return {};
+  return {
+    topLeft: legacyValue,
+    topRight: legacyValue,
+    bottomRight: legacyValue,
+    bottomLeft: legacyValue,
+    unit: "px",
+  };
+}
+
+function getAnchorContent(
+  portfolio: Portfolio,
+  section: PortfolioSection,
+  selected: SelectedElement,
+): AnchorContent | undefined {
+  if (selected.kind === "text") {
+    if (section.type === "header" && selected.field === "logoText") {
+      return {
+        id: "",
+        href: "#",
+        target: "_self",
+        label: String(contentValue(section, "logoText") || portfolio.owner.fullName),
+      };
+    }
+    if (section.type === "header" && selected.field === "contactButton") {
+      return {
+        id: "",
+        href: "#contact",
+        target: "_self",
+        label: String(contentValue(section, "contactButton") || "Contact"),
+      };
+    }
+    if (section.type === "hero" && selected.field === "primaryCta") {
+      return {
+        id: "",
+        href: "#projects",
+        target: "_self",
+        label: getHeroActionContent(section, "primaryCta", "View Projects"),
+      };
+    }
+    if (section.type === "hero" && selected.field === "secondaryCta") {
+      return {
+        id: "",
+        href: `mailto:${portfolio.owner.email}`,
+        target: "_self",
+        label: getHeroActionContent(section, "secondaryCta", "Contact Me"),
+      };
+    }
+  }
+
+  if (selected.kind !== "layer") return undefined;
+  if (section.type === "footer" && selected.layerId === "back-to-top") {
+    return { id: "", href: "#top", target: "_self", label: "Back to top" };
+  }
+  if (section.type === "hero" && selected.layerId.startsWith("social-link:")) {
+    const platform = selected.layerId.slice("social-link:".length);
+    const socialLink = portfolio.owner.socialLinks.find(
+      (candidate) => candidate.platform === platform,
+    );
+    if (socialLink) {
+      return {
+        id: "",
+        href: socialLink.url,
+        target: "_self",
+        label: socialLink.platform,
+      };
+    }
+  }
+  if (
+    section.type === "header" &&
+    selected.layerId.startsWith("navigation-link:")
+  ) {
+    const targetSectionId = selected.layerId.slice("navigation-link:".length);
+    const navigationLink = resolveHeaderNavigationLinks(
+      section,
+      portfolio.sections,
+    ).find((candidate) => candidate.section.id === targetSectionId);
+    if (navigationLink) {
+      return {
+        id: "",
+        href: navigationLink.href,
+        target: "_self",
+        label: navigationLink.label,
+      };
+    }
+  }
+  return undefined;
 }
 
 function configuredSectionLayout(

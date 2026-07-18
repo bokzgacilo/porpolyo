@@ -18,16 +18,25 @@ import {
   appendCustomLayer,
   deleteCustomLayer,
   duplicateCustomLayer,
+  findCustomLayer,
   moveCustomLayer,
   moveCustomLayerToNativeContainer,
   updateCustomLayer,
 } from "../utils/customLayers";
+import { createContentField, contentValue, materializeContent } from "../utils/contentFields";
+import { contentFieldFromElementKey } from "../utils/elementSettings";
 
 export interface EditorHistoryEntry {
   id: string;
   label: string;
   portfolio: Portfolio;
 }
+
+type NewSectionPlacement = {
+  id?: string;
+  parentSectionId?: string;
+  parentLayerId?: string;
+};
 
 interface EditorState {
   portfolio?: Portfolio;
@@ -51,12 +60,22 @@ interface EditorState {
   reorderSections: (activeId: string, overId: string) => void;
   duplicateSection: (sectionId: string) => void;
   deleteSection: (sectionId: string) => void;
-  addSection: (type: "custom" | "projects" | "certifications" | "services" | "about") => void;
+  addSection: (
+    type: "custom" | "projects" | "certifications" | "services" | "about",
+    placement?: NewSectionPlacement,
+  ) => void;
   updateCollectionItem: (sectionId: string, itemId: string, value: Record<string, unknown>) => void;
   addCollectionItem: (sectionId: string) => void;
   deleteCollectionItem: (sectionId: string, itemId: string) => void;
   duplicateCollectionItem: (sectionId: string, itemId: string) => void;
   reorderCollectionItems: (sectionId: string, activeId: string, overId: string) => void;
+  reorderTemplateLayers: (sectionId: string, activeId: string, overId: string) => void;
+  moveTemplateLayerToContainer: (
+    sectionId: string,
+    activeId: string,
+    parentLayerId: string | undefined,
+    siblingIds: string[],
+  ) => void;
   addCustomLayer: (sectionId: string, layer: CustomLayer, parentId?: string) => void;
   updateCustomLayer: (sectionId: string, layerId: string, updates: Partial<Omit<CustomLayer, "id" | "type" | "children">>) => void;
   deleteCustomLayer: (sectionId: string, layerId: string) => void;
@@ -136,14 +155,55 @@ function humanize(value: string) {
     .replace(/^./, (character) => character.toUpperCase());
 }
 
-const sortable = (sections: PortfolioSection[]) =>
-  sections.filter((section) => !section.locked).sort((a, b) => a.order - b.order);
-
 function normalizeOrder(sections: PortfolioSection[]) {
   const header = sections.find((section) => section.type === "header");
   const footer = sections.find((section) => section.type === "footer");
   const middle = sections.filter((section) => section.type !== "header" && section.type !== "footer");
   return [header, ...middle, footer].filter(Boolean).map((section, order) => ({ ...section!, order }));
+}
+
+function sectionSubtreeIds(sections: PortfolioSection[], rootId: string) {
+  const ids = new Set([rootId]);
+  let foundChild = true;
+  while (foundChild) {
+    foundChild = false;
+    for (const section of sections) {
+      if (
+        section.parentSectionId &&
+        ids.has(section.parentSectionId) &&
+        !ids.has(section.id)
+      ) {
+        ids.add(section.id);
+        foundChild = true;
+      }
+    }
+  }
+  return ids;
+}
+
+function nestedSectionIdsAtPlacement(
+  sections: PortfolioSection[],
+  parentSectionId: string,
+  parentLayerIds: Set<string>,
+) {
+  const ids = new Set<string>();
+  for (const section of sections) {
+    if (
+      section.parentSectionId === parentSectionId &&
+      section.parentLayerId &&
+      parentLayerIds.has(section.parentLayerId)
+    ) {
+      for (const id of sectionSubtreeIds(sections, section.id)) ids.add(id);
+    }
+  }
+  return ids;
+}
+
+function customLayerSubtreeIds(layer: CustomLayer): string[] {
+  return [
+    layer.id,
+    ...(layer.children || []).flatMap(customLayerSubtreeIds),
+  ];
 }
 
 export const useEditorStore = create<EditorState>((set) => ({
@@ -224,6 +284,20 @@ export const useEditorStore = create<EditorState>((set) => ({
         (portfolio) => {
           portfolio.sections = portfolio.sections.map((section) => {
             if (section.id !== sectionId) return section;
+            const contentField = contentFieldFromElementKey(elementKey, section);
+            if (contentField) {
+              const current = section.content[contentField] || createContentField(undefined);
+              return {
+                ...section,
+                content: {
+                  ...section.content,
+                  [contentField]: {
+                    ...current,
+                    style: { ...current.style, ...updates },
+                  },
+                },
+              };
+            }
             const current = section.elements?.[elementKey] || {};
             return {
               ...section,
@@ -244,7 +318,18 @@ export const useEditorStore = create<EditorState>((set) => ({
         `Edited ${humanize(field)}`,
         (portfolio) => {
           portfolio.sections = portfolio.sections.map((section) =>
-            section.id === sectionId ? { ...section, content: { ...section.content, [field]: value } } : section
+            section.id === sectionId
+              ? {
+                  ...section,
+                  content: {
+                    ...section.content,
+                    [field]: {
+                      ...(section.content[field] || createContentField(undefined)),
+                      value,
+                    },
+                  },
+                }
+              : section
           );
         },
         editGroup(state),
@@ -257,7 +342,18 @@ export const useEditorStore = create<EditorState>((set) => ({
         `${image ? "Updated" : "Removed"} ${humanize(field)} image`,
         (portfolio) => {
         portfolio.sections = portfolio.sections.map((section) =>
-          section.id === sectionId ? { ...section, content: { ...section.content, [field]: image } } : section
+          section.id === sectionId
+            ? {
+                ...section,
+                content: {
+                  ...section.content,
+                  [field]: {
+                    ...(section.content[field] || createContentField(undefined)),
+                    value: image ?? null,
+                  },
+                },
+              }
+            : section
         );
         },
       )
@@ -265,14 +361,31 @@ export const useEditorStore = create<EditorState>((set) => ({
   reorderSections: (activeId, overId) =>
     set((state) =>
       mutatePortfolio(state, "Reordered sections", (portfolio) => {
-        const movable = sortable(portfolio.sections);
+        const activeSection = portfolio.sections.find(
+          (section) => section.id === activeId,
+        );
+        if (!activeSection) return;
+        const movable = portfolio.sections
+          .filter(
+            (section) =>
+              !section.locked &&
+              section.parentSectionId === activeSection.parentSectionId &&
+              section.parentLayerId === activeSection.parentLayerId,
+          )
+          .sort((a, b) => a.order - b.order);
         const activeIndex = movable.findIndex((section) => section.id === activeId);
         const overIndex = movable.findIndex((section) => section.id === overId);
         if (activeIndex < 0 || overIndex < 0) return;
+        const siblingOrders = movable.map((section) => section.order).sort((a, b) => a - b);
         const [moved] = movable.splice(activeIndex, 1);
         movable.splice(overIndex, 0, moved);
-        const fixed = portfolio.sections.filter((section) => section.locked);
-        portfolio.sections = normalizeOrder([...fixed, ...movable]);
+        const nextOrder = new Map(
+          movable.map((section, index) => [section.id, siblingOrders[index]]),
+        );
+        portfolio.sections = portfolio.sections.map((section) => ({
+          ...section,
+          order: nextOrder.get(section.id) ?? section.order,
+        }));
       })
     ),
   duplicateSection: (sectionId) =>
@@ -292,10 +405,13 @@ export const useEditorStore = create<EditorState>((set) => ({
       mutatePortfolio(state, `Deleted ${sectionLabel(state, sectionId)}`, (portfolio) => {
         const section = portfolio.sections.find((item) => item.id === sectionId);
         if (!section || section.type === "header" || section.type === "footer") return;
-        portfolio.sections = normalizeOrder(portfolio.sections.filter((item) => item.id !== sectionId));
+        const removedIds = sectionSubtreeIds(portfolio.sections, sectionId);
+        portfolio.sections = normalizeOrder(
+          portfolio.sections.filter((item) => !removedIds.has(item.id)),
+        );
       })
     ),
-  addSection: (type) =>
+  addSection: (type, placement = {}) =>
     set((state) =>
       mutatePortfolio(state, `Added ${humanize(type)} section`, (portfolio) => {
         const label =
@@ -305,13 +421,15 @@ export const useEditorStore = create<EditorState>((set) => ({
         portfolio.sections = normalizeOrder([
           ...portfolio.sections,
           {
-            id: nanoid(),
+            id: placement.id || nanoid(),
             type,
+            parentSectionId: placement.parentSectionId,
+            parentLayerId: placement.parentLayerId,
             label,
             visible: true,
             locked: false,
             order: portfolio.sections.length - 1,
-            content:
+            content: materializeContent(
               type === "custom"
                 ? {}
                 : type === "about"
@@ -335,6 +453,7 @@ export const useEditorStore = create<EditorState>((set) => ({
                         ],
                       }
                     : { title: label, items: [] },
+            ),
             customLayers: type === "custom" ? [] : undefined,
             settings: {
               layoutMode: "stack",
@@ -358,10 +477,10 @@ export const useEditorStore = create<EditorState>((set) => ({
         (portfolio) => {
           portfolio.sections = portfolio.sections.map((section) => {
             if (section.id !== sectionId) return section;
-            const items = ((section.content.items || []) as Record<string, unknown>[]).map((item) =>
+            const items = (contentValue<Record<string, unknown>[]>(section, "items") || []).map((item) =>
               item.id === itemId ? { ...item, ...value } : item
             );
-            return { ...section, content: { ...section.content, items } };
+            return { ...section, content: { ...section.content, items: { ...section.content.items, value: items } } };
           });
         },
         editGroup(state),
@@ -380,7 +499,8 @@ export const useEditorStore = create<EditorState>((set) => ({
           } else {
             item = { id: nanoid(), title: "New service", description: "Describe the service.", ctaText: "Contact" };
           }
-          return { ...section, content: { ...section.content, items: [...((section.content.items || []) as unknown[]), item] } };
+          const items = contentValue<unknown[]>(section, "items") || [];
+          return { ...section, content: { ...section.content, items: { ...(section.content.items || createContentField([])), value: [...items, item] } } };
         });
       })
     ),
@@ -389,8 +509,21 @@ export const useEditorStore = create<EditorState>((set) => ({
       mutatePortfolio(state, `Deleted item from ${sectionLabel(state, sectionId)}`, (portfolio) => {
         portfolio.sections = portfolio.sections.map((section) => {
           if (section.id !== sectionId) return section;
-          return { ...section, content: { ...section.content, items: ((section.content.items || []) as Record<string, unknown>[]).filter((item) => item.id !== itemId) } };
+          const items = (contentValue<Record<string, unknown>[]>(section, "items") || []).filter((item) => item.id !== itemId);
+          return { ...section, content: { ...section.content, items: { ...section.content.items, value: items } } };
         });
+        const nestedIds = nestedSectionIdsAtPlacement(
+          portfolio.sections,
+          sectionId,
+          new Set([
+            `project:${itemId}`,
+            `certification:${itemId}`,
+            `service:${itemId}`,
+          ]),
+        );
+        portfolio.sections = portfolio.sections.filter(
+          (section) => !nestedIds.has(section.id),
+        );
       })
     ),
   duplicateCollectionItem: (sectionId, itemId) =>
@@ -398,13 +531,13 @@ export const useEditorStore = create<EditorState>((set) => ({
       mutatePortfolio(state, `Duplicated item in ${sectionLabel(state, sectionId)}`, (portfolio) => {
         portfolio.sections = portfolio.sections.map((section) => {
           if (section.id !== sectionId) return section;
-          const items = [...((section.content.items || []) as Record<string, unknown>[])];
+          const items = [...(contentValue<Record<string, unknown>[]>(section, "items") || [])];
           const index = items.findIndex((item) => item.id === itemId);
           if (index < 0) return section;
           const copy = structuredClone(items[index]);
           copy.id = nanoid();
           items.splice(index + 1, 0, copy);
-          return { ...section, content: { ...section.content, items } };
+          return { ...section, content: { ...section.content, items: { ...section.content.items, value: items } } };
         });
       }),
     ),
@@ -413,15 +546,92 @@ export const useEditorStore = create<EditorState>((set) => ({
       mutatePortfolio(state, `Reordered ${sectionLabel(state, sectionId)} items`, (portfolio) => {
         portfolio.sections = portfolio.sections.map((section) => {
           if (section.id !== sectionId) return section;
-          const items = [...((section.content.items || []) as Record<string, unknown>[])];
+          const items = [...(contentValue<Record<string, unknown>[]>(section, "items") || [])];
           const activeIndex = items.findIndex((item) => item.id === activeId);
           const overIndex = items.findIndex((item) => item.id === overId);
           if (activeIndex < 0 || overIndex < 0) return section;
           const [moved] = items.splice(activeIndex, 1);
           items.splice(overIndex, 0, moved);
-          return { ...section, content: { ...section.content, items } };
+          return { ...section, content: { ...section.content, items: { ...section.content.items, value: items } } };
         });
       })
+    ),
+  reorderTemplateLayers: (sectionId, activeId, overId) =>
+    set((state) =>
+      mutatePortfolio(state, "Reordered template layers", (portfolio) => {
+        portfolio.sections = portfolio.sections.map((section) => {
+          if (section.id !== sectionId) return section;
+          const fallbackOrder =
+            section.type === "hero"
+              ? [
+                  `${section.id}-hero-content`,
+                  `${section.id}-text-eyebrow`,
+                  `${section.id}-text-headline`,
+                  `${section.id}-text-description`,
+                  `${section.id}-hero-actions`,
+                  `${section.id}-text-primaryCta`,
+                  `${section.id}-text-secondaryCta`,
+                  `${section.id}-image-image`,
+                ]
+              : section.type === "projects"
+                ? [
+                    `${section.id}-project-content`,
+                    `${section.id}-projects-list`,
+                  ]
+              : [];
+          const order = [
+            ...new Set([
+              ...(section.settings.templateLayerOrder || []),
+              ...fallbackOrder,
+            ]),
+          ];
+          const fromIndex = order.indexOf(activeId);
+          const toIndex = order.indexOf(overId);
+          if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+            return section;
+          }
+          const nextOrder = [...order];
+          const [moved] = nextOrder.splice(fromIndex, 1);
+          nextOrder.splice(toIndex, 0, moved);
+          return {
+            ...section,
+            settings: {
+              ...section.settings,
+              templateLayerOrder: nextOrder,
+            },
+          };
+        });
+      }),
+    ),
+  moveTemplateLayerToContainer: (
+    sectionId,
+    activeId,
+    parentLayerId,
+    siblingIds,
+  ) =>
+    set((state) =>
+      mutatePortfolio(state, "Moved template layer", (portfolio) => {
+        portfolio.sections = portfolio.sections.map((section) => {
+          if (section.id !== sectionId) return section;
+          const siblingSet = new Set(siblingIds);
+          return {
+            ...section,
+            settings: {
+              ...section.settings,
+              templateLayerParents: {
+                ...(section.settings.templateLayerParents || {}),
+                [activeId]: parentLayerId ?? null,
+              },
+              templateLayerOrder: [
+                ...siblingIds,
+                ...(section.settings.templateLayerOrder || []).filter(
+                  (id) => !siblingSet.has(id),
+                ),
+              ],
+            },
+          };
+        });
+      }),
     ),
   addCustomLayer: (sectionId, layer, parentId) =>
     set((state) =>
@@ -465,6 +675,23 @@ export const useEditorStore = create<EditorState>((set) => ({
   deleteCustomLayer: (sectionId, layerId) =>
     set((state) =>
       mutatePortfolio(state, "Deleted custom layer", (portfolio) => {
+        const ownerSection = portfolio.sections.find(
+          (section) => section.id === sectionId,
+        );
+        const removedLayer = findCustomLayer(
+          ownerSection?.customLayers,
+          layerId,
+        );
+        const removedLayerIds = new Set(
+          (removedLayer ? customLayerSubtreeIds(removedLayer) : [layerId]).map(
+            (id) => `custom:${id}`,
+          ),
+        );
+        const nestedIds = nestedSectionIdsAtPlacement(
+          portfolio.sections,
+          sectionId,
+          removedLayerIds,
+        );
         portfolio.sections = portfolio.sections.map((section) =>
           section.id === sectionId
             ? {
@@ -472,6 +699,9 @@ export const useEditorStore = create<EditorState>((set) => ({
                 customLayers: deleteCustomLayer(section.customLayers, layerId),
               }
             : section,
+        );
+        portfolio.sections = portfolio.sections.filter(
+          (section) => !nestedIds.has(section.id),
         );
       }),
     ),

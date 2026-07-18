@@ -1,5 +1,6 @@
 import { Box, ColorPicker, Field, HStack, Portal, parseColor } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
+import { useEditorControlSize } from "../editor/EditorSizeContext";
 
 export function ColorInput({
   label,
@@ -14,6 +15,7 @@ export function ColorInput({
   swatches?: string[];
   onChange: (value: string) => void;
 }) {
+  const controlSize = useEditorControlSize();
   const current = normalizeColor(value || fallback);
   const [draft, setDraft] = useState(current);
 
@@ -29,6 +31,7 @@ export function ColorInput({
     <Field.Root>
       <Field.Label>{label}</Field.Label>
       <ColorPicker.Root
+        size={controlSize}
         value={parseColor(draft)}
         onValueChange={(details) =>
           setDraft(normalizeColor(details.value.toString("hex")))

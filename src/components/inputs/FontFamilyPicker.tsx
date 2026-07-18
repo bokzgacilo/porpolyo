@@ -17,6 +17,7 @@ import {
   type PropsWithChildren,
 } from "react";
 import { LuCheck, LuChevronDown, LuSearch } from "react-icons/lu";
+import { useEditorControlSize } from "../editor/EditorSizeContext";
 
 type FontOption = {
   label: string;
@@ -103,6 +104,7 @@ export function FontFamilyPicker({
   defaultFontFamily: string;
   onChange: (value: string | undefined) => void;
 }) {
+  const controlSize = useEditorControlSize();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const defaultFont: FontOption = {
@@ -178,6 +180,7 @@ export function FontFamilyPicker({
                   <LuSearch />
                 </Box>
                 <Input
+                  size={controlSize}
                   autoFocus
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}

@@ -10,12 +10,15 @@ import {
 import { useEffect, useState } from "react";
 import {
   getSectionLayoutDefaults,
+  gridAlignItemsOptions,
+  gridJustifyContentOptions,
   resolveSectionLayoutSettings,
   stackAlignOptions,
   stackDirectionOptions,
   stackJustifyOptions,
 } from "../../config/sectionLayoutSettings";
 import type { PortfolioSection, SectionSettings } from "../../types/portfolio";
+import { useEditorControlSize } from "../editor/EditorSizeContext";
 
 export function SectionLayoutControls({
   section,
@@ -24,6 +27,7 @@ export function SectionLayoutControls({
   section: PortfolioSection;
   onChange: (updates: Partial<SectionSettings>) => void;
 }) {
+  const controlSize = useEditorControlSize();
   const layout = resolveSectionLayoutSettings(section);
   const mode = layout.layoutMode || "stack";
   const update = (updates: Partial<SectionSettings>) =>
@@ -33,7 +37,7 @@ export function SectionLayoutControls({
     <Stack gap="4">
       <Field.Root>
         <Field.Label>Layout type</Field.Label>
-        <NativeSelect.Root>
+        <NativeSelect.Root size={controlSize}>
           <NativeSelect.Field
             value={mode}
             onChange={(event) => {
@@ -52,31 +56,57 @@ export function SectionLayoutControls({
       </Field.Root>
 
       {mode === "grid" ? (
-        <SimpleGrid columns={2} gap="3">
-          <NumberField
-            label="Columns"
-            min={1}
-            max={12}
-            value={layout.gridColumns ?? 2}
-            onChange={(gridColumns) => update({ gridColumns })}
-          />
-          <NumberField
-            label="Gap X"
-            min={0}
-            max={240}
-            suffix="px"
-            value={layout.gridGapX ?? 16}
-            onChange={(gridGapX) => update({ gridGapX })}
-          />
-          <NumberField
-            label="Gap Y"
-            min={0}
-            max={240}
-            suffix="px"
-            value={layout.gridGapY ?? 16}
-            onChange={(gridGapY) => update({ gridGapY })}
-          />
-        </SimpleGrid>
+        <Stack gap="3">
+          <SimpleGrid columns={2} gap="3">
+            <NumberField
+              label="Columns"
+              min={1}
+              max={12}
+              value={layout.gridColumns ?? 2}
+              onChange={(gridColumns) => update({ gridColumns })}
+            />
+            <NumberField
+              label="Gap X"
+              min={0}
+              max={240}
+              suffix="px"
+              value={layout.gridGapX ?? 16}
+              onChange={(gridGapX) => update({ gridGapX })}
+            />
+            <NumberField
+              label="Gap Y"
+              min={0}
+              max={240}
+              suffix="px"
+              value={layout.gridGapY ?? 16}
+              onChange={(gridGapY) => update({ gridGapY })}
+            />
+          </SimpleGrid>
+          <SimpleGrid columns={2} gap="3">
+            <SelectField
+              label="Align items"
+              value={layout.gridAlignItems || "stretch"}
+              options={gridAlignItemsOptions}
+              onChange={(gridAlignItems) =>
+                update({
+                  gridAlignItems:
+                    gridAlignItems as SectionSettings["gridAlignItems"],
+                })
+              }
+            />
+            <SelectField
+              label="Justify content"
+              value={layout.gridJustifyContent || "start"}
+              options={gridJustifyContentOptions}
+              onChange={(gridJustifyContent) =>
+                update({
+                  gridJustifyContent:
+                    gridJustifyContent as SectionSettings["gridJustifyContent"],
+                })
+              }
+            />
+          </SimpleGrid>
+        </Stack>
       ) : (
         <Stack gap="3">
           <SimpleGrid columns={2} gap="3">
@@ -160,6 +190,7 @@ function NumberField({
   suffix?: string;
   onChange: (value: number) => void;
 }) {
+  const controlSize = useEditorControlSize();
   const externalValue = String(value);
   const [draft, setDraft] = useState(externalValue);
 
@@ -177,6 +208,7 @@ function NumberField({
         {label} {suffix && <Text as="span" color="fg.muted">({suffix})</Text>}
       </Field.Label>
       <Input
+        size={controlSize}
         type="number"
         min={min}
         max={max}
@@ -202,10 +234,11 @@ function SelectField({
   options: readonly { label: string; value: string }[];
   onChange: (value: string) => void;
 }) {
+  const controlSize = useEditorControlSize();
   return (
     <Field.Root>
       <Field.Label>{label}</Field.Label>
-      <NativeSelect.Root>
+      <NativeSelect.Root size={controlSize}>
         <NativeSelect.Field
           value={value}
           onChange={(event) => onChange(event.currentTarget.value)}

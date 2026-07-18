@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { SelectedElement } from "../../types/portfolio";
 import { selectedElementKey } from "../../utils/elementSettings";
+import { createAnimationFrameScheduler } from "../../utils/animationFrameScheduler";
 
 export type ComputedLayoutStructure = {
   type: "flex" | "grid" | "flow";
@@ -80,20 +81,22 @@ export function useComputedLayoutStructure(
     };
 
     measure();
-    const resizeObserver = new ResizeObserver(measure);
-    const mutationObserver = new MutationObserver(measure);
+    const measurement = createAnimationFrameScheduler(measure);
+    const resizeObserver = new ResizeObserver(measurement.schedule);
+    const mutationObserver = new MutationObserver(measurement.schedule);
     resizeObserver.observe(target);
     mutationObserver.observe(target, {
       attributes: true,
       attributeFilter: ["class", "style"],
       childList: true,
     });
-    window.addEventListener("resize", measure);
+    window.addEventListener("resize", measurement.schedule);
 
     return () => {
       resizeObserver.disconnect();
       mutationObserver.disconnect();
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", measurement.schedule);
+      measurement.cancel();
     };
   }, [sectionId, selectionKey]);
 

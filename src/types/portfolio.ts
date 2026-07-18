@@ -55,6 +55,14 @@ export interface SectionSettings {
   gridColumns?: number;
   gridGapX?: number;
   gridGapY?: number;
+  gridAlignItems?: "stretch" | "start" | "center" | "end";
+  gridJustifyContent?:
+    | "start"
+    | "center"
+    | "end"
+    | "space-between"
+    | "space-around"
+    | "space-evenly";
   stackDirection?: "row" | "column";
   stackAlign?: "stretch" | "flex-start" | "center" | "flex-end";
   stackJustify?:
@@ -83,9 +91,13 @@ export interface SectionSettings {
   paddingBottom?: number;
   paddingInline?: number;
   borderWidth?: number;
+  borderWidths?: BoxSpacing;
   borderStyle?: "none" | "solid" | "dashed" | "dotted";
   borderColor?: string;
   borderRadius?: number;
+  borderRadii?: BorderRadiusValues;
+  templateLayerOrder?: string[];
+  templateLayerParents?: Record<string, string | null>;
 }
 
 export interface BoxSpacing {
@@ -96,6 +108,14 @@ export interface BoxSpacing {
   unit?: SpacingUnit;
 }
 
+export interface BorderRadiusValues {
+  topLeft?: number;
+  topRight?: number;
+  bottomRight?: number;
+  bottomLeft?: number;
+  unit?: SpacingUnit;
+}
+
 export type SpacingUnit = "px" | "rem" | "em" | "%" | "vw" | "vh";
 
 export interface ElementSettings {
@@ -103,6 +123,8 @@ export interface ElementSettings {
   gridColumns?: number;
   gridGapX?: number;
   gridGapY?: number;
+  gridAlignItems?: SectionSettings["gridAlignItems"];
+  gridJustifyContent?: SectionSettings["gridJustifyContent"];
   stackDirection?: "row" | "column";
   stackAlign?: "stretch" | "flex-start" | "center" | "flex-end";
   stackJustify?: SectionSettings["stackJustify"];
@@ -122,20 +144,31 @@ export interface ElementSettings {
   margin?: BoxSpacing;
   padding?: BoxSpacing;
   borderWidth?: number;
+  borderWidths?: BoxSpacing;
   borderStyle?: "none" | "solid" | "dashed" | "dotted";
   borderColor?: string;
   borderRadius?: number;
+  borderRadii?: BorderRadiusValues;
   boxShadow?: string;
   width?: SizeValue;
   height?: SizeValue;
+  order?: number;
   spanSection?: boolean;
+  anchor?: AnchorContent;
+}
+
+export interface AnchorContent {
+  id?: string;
+  href?: string;
+  target?: "_self" | "_blank" | "_parent" | "_top";
+  label?: string;
 }
 
 export type TypographyUnit = "rem" | "em" | "px" | "%" | "ch";
 
 export interface SizeValue {
   value?: number;
-  unit: "px" | "%";
+  unit: "px" | "%" | "fill";
 }
 
 export interface ProjectItem {
@@ -175,16 +208,25 @@ export interface ServiceItem {
 export interface PortfolioSection {
   id: string;
   type: SectionType;
+  parentSectionId?: string;
+  parentLayerId?: string;
   label: string;
   visible: boolean;
   locked: boolean;
   order: number;
   variant?: string;
-  content: Record<string, unknown>;
+  content: PortfolioContent;
   settings: SectionSettings;
   elements?: Record<string, ElementSettings>;
   customLayers?: CustomLayer[];
 }
+
+export interface ContentField<T = unknown> {
+  value: T | null;
+  style: ElementSettings;
+}
+
+export type PortfolioContent = Record<string, ContentField>;
 
 export type CustomLayerType = "div" | "text" | "image";
 
@@ -212,12 +254,18 @@ export interface BreakpointWidths {
   mobile: number;
 }
 
+export type EditorPanelSize = "small" | "default" | "large";
+
 export interface EditorSettings {
+  panelSize?: EditorPanelSize;
   propertiesPanelWidth?: number;
   propertiesPanelMinWidth?: number;
   propertiesPanelMaxWidth?: number;
   alwaysOpenTour?: boolean;
+  showStructureOverlay?: boolean;
   showBoxModelOverlay?: boolean;
+  showStructureTab?: boolean;
+  showBoxModelTab?: boolean;
 }
 
 export interface PortfolioHead {

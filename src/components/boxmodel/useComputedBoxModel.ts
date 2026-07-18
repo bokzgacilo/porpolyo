@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { BoxSpacing, SelectedElement } from "../../types/portfolio";
 import { selectedElementKey } from "../../utils/elementSettings";
+import { createAnimationFrameScheduler } from "../../utils/animationFrameScheduler";
 
 export type ComputedBoxModel = {
   margin: BoxSpacing & Required<Pick<BoxSpacing, "top" | "right" | "bottom" | "left">>;
@@ -67,19 +68,21 @@ export function useComputedBoxModel(
     };
 
     measure();
-    const resizeObserver = new ResizeObserver(measure);
-    const mutationObserver = new MutationObserver(measure);
+    const measurement = createAnimationFrameScheduler(measure);
+    const resizeObserver = new ResizeObserver(measurement.schedule);
+    const mutationObserver = new MutationObserver(measurement.schedule);
     resizeObserver.observe(target);
     mutationObserver.observe(target, {
       attributes: true,
       attributeFilter: ["class", "style"],
     });
-    window.addEventListener("resize", measure);
+    window.addEventListener("resize", measurement.schedule);
 
     return () => {
       resizeObserver.disconnect();
       mutationObserver.disconnect();
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", measurement.schedule);
+      measurement.cancel();
     };
   }, [sectionId, selectionKey]);
 

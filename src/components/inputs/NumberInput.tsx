@@ -5,6 +5,7 @@ import {
   NumberInputRoot,
 } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
+import { useEditorControlSize } from "../editor/EditorSizeContext";
 
 type NumberInputProps = {
   label: string;
@@ -15,6 +16,7 @@ type NumberInputProps = {
 };
 
 export function NumberInput({ label, value, min, max, onChange }: NumberInputProps) {
+  const controlSize = useEditorControlSize();
   const externalValue = value?.toString() ?? "";
   const [draft, setDraft] = useState(externalValue);
 
@@ -37,7 +39,7 @@ export function NumberInput({ label, value, min, max, onChange }: NumberInputPro
 
       <NumberInputRoot
         w="full"
-        size="xs"
+        size={controlSize}
         value={draft}
         min={min}
         max={max}

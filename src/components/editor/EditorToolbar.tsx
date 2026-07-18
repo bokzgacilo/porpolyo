@@ -1,10 +1,10 @@
 import { Button, HStack, IconButton, Stack, Text } from "@chakra-ui/react";
-import { Eye, Redo2, Save, Undo2, UploadCloud } from "lucide-react";
+import { Check, Eye, Redo2, Save, Undo2, UploadCloud } from "lucide-react";
 import { palettes, templates } from "../../data/templates";
 import { Portfolio } from "../../types/portfolio";
-import { LuFlagTriangleRight, LuSettings } from "react-icons/lu";
-import { ColorModeButton } from "../ui/color-mode";
-import { EditorTourButton } from "./EditorTourButton";
+import { LuFlagTriangleRight } from "react-icons/lu";
+import { useSaveFeedback } from "../../hooks/useSaveFeedback";
+import { Tooltip } from "../ui/tooltip";
 
 export function EditorToolbar({
   portfolio,
@@ -12,9 +12,6 @@ export function EditorToolbar({
   onUndo,
   onRedo,
   onSave,
-  onSettings,
-  onStartTour,
-  alwaysOpenTour,
   onPreview,
   onPublish,
 }: {
@@ -22,19 +19,28 @@ export function EditorToolbar({
   unsaved: boolean;
   onUndo: () => void;
   onRedo: () => void;
-  onSave: () => void;
-  onSettings: () => void;
-  onStartTour: () => void;
-  alwaysOpenTour: boolean;
+  onSave: () => void | Promise<void>;
   onPreview: () => void;
   onPublish: () => void;
 }) {
   const palette = palettes.find((item) => item.id === portfolio.paletteId)!;
   const template = templates.find((item) => item.id === portfolio.templateId)!;
+  const { save, status: saveStatus } = useSaveFeedback(onSave);
+  const saveTooltip =
+    saveStatus === "saving"
+      ? "Saving portfolio…"
+      : saveStatus === "saved"
+        ? "Portfolio saved"
+        : saveStatus === "error"
+          ? "Save failed. Try again."
+          : unsaved
+            ? "Save portfolio changes"
+            : "All portfolio changes are saved";
 
   return (
     <>
       <HStack
+        className="editor-toolbar"
         bg="bg"
         borderBottom="1px solid"
         borderBottomColor="border"
@@ -72,23 +78,23 @@ export function EditorToolbar({
           >
             <Redo2 size={16} />
           </IconButton>
-          <IconButton
-            onClick={onSettings}
-            aria-label="Project settings"
-            title="Project settings"
-            variant="ghost"
-            rounded={0}
-          >
-            <LuSettings size={16} />
-          </IconButton>
-          <EditorTourButton
-            alwaysOpen={alwaysOpenTour}
-            onBeforeStart={onStartTour}
-          />
-          <ColorModeButton size="md" variant="ghost" />
-          <Button rounded={0} title="Save" onClick={onSave} variant="ghost">
-            <Save size={16} /> Save
-          </Button>
+          <Tooltip content={saveTooltip} showArrow openDelay={200}>
+            <Button
+              aria-label={saveTooltip}
+              rounded={0}
+              onClick={() => void save()}
+              variant="ghost"
+              loading={saveStatus === "saving"}
+              loadingText="Saving"
+            >
+              {saveStatus === "saved" ? (
+                <Check size={16} />
+              ) : (
+                <Save size={16} />
+              )}
+              {saveStatus === "saved" ? "Saved" : "Save"}
+            </Button>
+          </Tooltip>
           <Button colorPalette="blue" onClick={onPreview} rounded={0}>
             <Eye size={16} /> Preview
           </Button>

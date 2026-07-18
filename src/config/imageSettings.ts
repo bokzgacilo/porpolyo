@@ -87,6 +87,8 @@ export function toImageContentStyle(
 }
 
 function sizeValue(size: SizeValue | undefined) {
-  if (!size || size.value === undefined) return undefined;
+  if (!size) return undefined;
+  if (size.unit === "fill") return "100%";
+  if (size.value === undefined) return undefined;
   return `${size.value}${size.unit}`;
 }

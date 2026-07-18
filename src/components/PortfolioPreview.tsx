@@ -1,4 +1,4 @@
-import { Mail, MapPin, Menu } from "lucide-react";
+import { Mail, MapPin } from "lucide-react";
 import React from "react";
 import {
   toImageContentStyle,
@@ -9,15 +9,20 @@ import { useEditorStore } from "../store/editorStore";
 import {
   CertificationItem,
   CustomLayer,
+  ElementSettings,
   ImageAsset,
   Portfolio,
   ProjectItem,
   SelectedElement,
   ServiceItem,
+  SizeValue,
 } from "../types/portfolio";
 import { getElementSettings, toElementStyle } from "../utils/elementSettings";
+import { resolveHeaderNavigationLinks } from "../utils/headerNavigation";
+import { getHeroActionContent } from "../utils/heroContent";
 import { resolveSectionLayoutSettings } from "../config/sectionLayoutSettings";
 import { resolveBodyLayout } from "../config/bodySettings";
+import { contentValue, hasContentField } from "../utils/contentFields";
 
 interface Props {
   portfolio: Portfolio;
@@ -25,6 +30,10 @@ interface Props {
   onSelect: (selected: SelectedElement) => void;
   editable?: boolean;
 }
+
+const PortfolioRenderContext = React.createContext<Portfolio | undefined>(
+  undefined,
+);
 
 export const PortfolioPreview = React.memo(function PortfolioPreview({
   portfolio,
@@ -40,7 +49,7 @@ export const PortfolioPreview = React.memo(function PortfolioPreview({
     () =>
       [...portfolio.sections]
         .sort((a, b) => a.order - b.order)
-        .filter((section) => section.visible),
+        .filter((section) => section.visible && !section.parentSectionId),
     [portfolio.sections],
   );
   const bodyLayout = React.useMemo(
@@ -64,38 +73,26 @@ export const PortfolioPreview = React.memo(function PortfolioPreview({
   );
 
   return (
-    <article
-      className={`portfolio-site template-${portfolio.templateId} ${editable ? "editable-preview" : ""}`}
-      style={style}
-    >
-      {sorted.map((section) => {
-        const isSelected =
-          selected?.kind === "section" && selected.sectionId === section.id;
-        const props = {
-          portfolio,
-          section,
-          selected,
-          onSelect,
-          isSelected,
-          editable,
-        };
-        if (section.type === "header")
-          return <MemoHeaderSection key={section.id} {...props} />;
-        if (section.type === "hero")
-          return <MemoHeroSection key={section.id} {...props} />;
-        if (section.type === "projects")
-          return <MemoProjectsSection key={section.id} {...props} />;
-        if (section.type === "certifications")
-          return <MemoCertificationsSection key={section.id} {...props} />;
-        if (section.type === "services")
-          return <MemoServicesSection key={section.id} {...props} />;
-        if (section.type === "about")
-          return <MemoAboutSection key={section.id} {...props} />;
-        if (section.type === "custom")
-          return <MemoBlankSection key={section.id} {...props} />;
-        return <MemoFooterSection key={section.id} {...props} />;
-      })}
-    </article>
+    <PortfolioRenderContext.Provider value={portfolio}>
+      <article
+        className={`portfolio-site template-${portfolio.templateId} ${editable ? "editable-preview" : ""}`}
+        style={style}
+      >
+        {sorted.map((section) => (
+          <SectionRenderer
+            key={section.id}
+            portfolio={portfolio}
+            section={section}
+            selected={selected}
+            onSelect={onSelect}
+            isSelected={
+              selected?.kind === "section" && selected.sectionId === section.id
+            }
+            editable={editable}
+          />
+        ))}
+      </article>
+    </PortfolioRenderContext.Provider>
   );
 });
 
@@ -116,19 +113,31 @@ const MemoAboutSection = React.memo(AboutSection, sameSectionProps);
 const MemoBlankSection = React.memo(BlankSection, sameSectionProps);
 const MemoFooterSection = React.memo(FooterSection, sameSectionProps);
 
+function SectionRenderer(props: SectionProps) {
+  const { section } = props;
+  if (section.type === "header") return <MemoHeaderSection {...props} />;
+  if (section.type === "hero") return <MemoHeroSection {...props} />;
+  if (section.type === "projects") return <MemoProjectsSection {...props} />;
+  if (section.type === "certifications")
+    return <MemoCertificationsSection {...props} />;
+  if (section.type === "services") return <MemoServicesSection {...props} />;
+  if (section.type === "about") return <MemoAboutSection {...props} />;
+  if (section.type === "custom") return <MemoBlankSection {...props} />;
+  return <MemoFooterSection {...props} />;
+}
+
 function sameSectionProps(previous: SectionProps, next: SectionProps) {
   if (
     previous.section !== next.section ||
     previous.isSelected !== next.isSelected ||
     previous.editable !== next.editable ||
     previous.onSelect !== next.onSelect ||
-    previous.portfolio.owner !== next.portfolio.owner
-  ) {
-    return false;
-  }
-  if (
-    previous.section.type === "header" &&
-    previous.portfolio.sections !== next.portfolio.sections
+    previous.portfolio.owner !== next.portfolio.owner ||
+    !sameNestedSectionTree(
+      previous.portfolio.sections,
+      next.portfolio.sections,
+      next.section.id,
+    )
   ) {
     return false;
   }
@@ -143,6 +152,44 @@ function sameSectionProps(previous: SectionProps, next: SectionProps) {
   return (
     !previousSelectedHere && !nextSelectedHere
   ) || previous.selected === next.selected;
+}
+
+function sameNestedSectionTree(
+  previousSections: Portfolio["sections"],
+  nextSections: Portfolio["sections"],
+  rootSectionId: string,
+) {
+  if (previousSections === nextSections) return true;
+  const previousTree = nestedSectionTree(previousSections, rootSectionId);
+  const nextTree = nestedSectionTree(nextSections, rootSectionId);
+  return (
+    previousTree.length === nextTree.length &&
+    previousTree.every((section, index) => section === nextTree[index])
+  );
+}
+
+function nestedSectionTree(
+  sections: Portfolio["sections"],
+  rootSectionId: string,
+) {
+  const treeIds = new Set([rootSectionId]);
+  let addedSection = true;
+  while (addedSection) {
+    addedSection = false;
+    for (const section of sections) {
+      if (
+        section.parentSectionId &&
+        treeIds.has(section.parentSectionId) &&
+        !treeIds.has(section.id)
+      ) {
+        treeIds.add(section.id);
+        addedSection = true;
+      }
+    }
+  }
+  return sections.filter(
+    (section) => section.id !== rootSectionId && treeIds.has(section.id),
+  );
 }
 
 function selectionBelongsToSection(
@@ -176,6 +223,43 @@ function editorTarget(sectionId: string, key: string) {
   return {
     "data-editor-section-id": sectionId,
     "data-editor-selection-key": key,
+  };
+}
+
+function anchorAttributes(
+  settings: ElementSettings,
+  fallbackHref: string,
+  idSuffix = "",
+) {
+  const target = settings.anchor?.target;
+  const id = settings.anchor?.id;
+  return {
+    id: id ? `${id}${idSuffix}` : undefined,
+    href: settings.anchor?.href ?? fallbackHref,
+    target,
+    rel: target === "_blank" ? "noreferrer" : undefined,
+  };
+}
+
+function anchorLabel(settings: ElementSettings, fallbackLabel: string) {
+  return settings.anchor?.label ?? fallbackLabel;
+}
+
+function selectableLayer(
+  sectionId: string,
+  layerId: string,
+  label: string,
+  onSelect: Props["onSelect"],
+  editable = false,
+) {
+  return {
+    ...editorTarget(sectionId, `layer:${layerId}`),
+    onClick: editable
+      ? (event: React.MouseEvent) => {
+          event.stopPropagation();
+          onSelect({ kind: "layer", sectionId, layerId, label });
+        }
+      : undefined,
   };
 }
 
@@ -241,7 +325,9 @@ function sectionStyle(section: Portfolio["sections"][number]) {
           )
         : section.settings.paddingTop !== undefined
           ? boxSpacingValue(section.settings.paddingTop)
-          : section.settings.spacing
+          : section.settings.spacing &&
+              section.type !== "header" &&
+              section.type !== "hero"
             ? sectionSpacing[section.settings.spacing]
             : undefined,
     paddingRight:
@@ -261,7 +347,9 @@ function sectionStyle(section: Portfolio["sections"][number]) {
           )
         : section.settings.paddingBottom !== undefined
           ? boxSpacingValue(section.settings.paddingBottom)
-          : section.settings.spacing
+          : section.settings.spacing &&
+              section.type !== "header" &&
+              section.type !== "hero"
             ? sectionSpacing[section.settings.spacing]
             : undefined,
     paddingLeft:
@@ -274,15 +362,66 @@ function sectionStyle(section: Portfolio["sections"][number]) {
           ? boxSpacingValue(section.settings.paddingInline)
           : undefined,
     borderWidth:
+      !section.settings.borderWidths &&
       section.settings.borderWidth !== undefined
         ? `${section.settings.borderWidth}px`
         : undefined,
+    borderTopWidth: section.settings.borderWidths
+      ? boxSpacingValue(
+          section.settings.borderWidths.top ?? section.settings.borderWidth,
+          section.settings.borderWidths.unit,
+        )
+      : undefined,
+    borderRightWidth: section.settings.borderWidths
+      ? boxSpacingValue(
+          section.settings.borderWidths.right ?? section.settings.borderWidth,
+          section.settings.borderWidths.unit,
+        )
+      : undefined,
+    borderBottomWidth: section.settings.borderWidths
+      ? boxSpacingValue(
+          section.settings.borderWidths.bottom ?? section.settings.borderWidth,
+          section.settings.borderWidths.unit,
+        )
+      : undefined,
+    borderLeftWidth: section.settings.borderWidths
+      ? boxSpacingValue(
+          section.settings.borderWidths.left ?? section.settings.borderWidth,
+          section.settings.borderWidths.unit,
+        )
+      : undefined,
     borderStyle: section.settings.borderStyle,
     borderColor: section.settings.borderColor,
     borderRadius:
+      !section.settings.borderRadii &&
       section.settings.borderRadius !== undefined
         ? `${section.settings.borderRadius}px`
         : undefined,
+    borderTopLeftRadius: section.settings.borderRadii
+      ? boxSpacingValue(
+          section.settings.borderRadii.topLeft ?? section.settings.borderRadius,
+          section.settings.borderRadii.unit,
+        )
+      : undefined,
+    borderTopRightRadius: section.settings.borderRadii
+      ? boxSpacingValue(
+          section.settings.borderRadii.topRight ?? section.settings.borderRadius,
+          section.settings.borderRadii.unit,
+        )
+      : undefined,
+    borderBottomRightRadius: section.settings.borderRadii
+      ? boxSpacingValue(
+          section.settings.borderRadii.bottomRight ??
+            section.settings.borderRadius,
+          section.settings.borderRadii.unit,
+        )
+      : undefined,
+    borderBottomLeftRadius: section.settings.borderRadii
+      ? boxSpacingValue(
+          section.settings.borderRadii.bottomLeft ?? section.settings.borderRadius,
+          section.settings.borderRadii.unit,
+        )
+      : undefined,
     display:
       layout?.layoutMode === "grid"
         ? "grid"
@@ -314,9 +453,17 @@ function sectionStyle(section: Portfolio["sections"][number]) {
     flexDirection:
       layout?.layoutMode === "stack" ? layout.stackDirection : undefined,
     alignItems:
-      layout?.layoutMode === "stack" ? layout.stackAlign : undefined,
+      layout?.layoutMode === "grid"
+        ? layout.gridAlignItems
+        : layout?.layoutMode === "stack"
+          ? layout.stackAlign
+          : undefined,
     justifyContent:
-      layout?.layoutMode === "stack" ? layout.stackJustify : undefined,
+      layout?.layoutMode === "grid"
+        ? layout.gridJustifyContent
+        : layout?.layoutMode === "stack"
+          ? layout.stackJustify
+          : undefined,
     gap:
       layout?.layoutMode === "stack" ? `${layout.stackGap || 0}px` : undefined,
     flexWrap:
@@ -341,8 +488,82 @@ function boxSpacingValue(value?: number, unit = "px") {
   return value !== undefined ? `${value}${unit}` : undefined;
 }
 
-function sectionSizeValue(size?: { value?: number; unit: "px" | "%" }) {
-  return size?.value !== undefined ? `${size.value}${size.unit}` : undefined;
+function sectionSizeValue(size?: SizeValue) {
+  if (!size) return undefined;
+  if (size.unit === "fill") return "100%";
+  return size.value !== undefined ? `${size.value}${size.unit}` : undefined;
+}
+
+function templateLayerPosition(
+  section: Portfolio["sections"][number],
+  layerId: string,
+  fallback: number,
+) {
+  const position = section.settings.templateLayerOrder?.indexOf(layerId) ?? -1;
+  return position >= 0 ? position : fallback;
+}
+
+function templateLayerParent(
+  section: Portfolio["sections"][number],
+  layerId: string,
+  fallback: string | null,
+) {
+  const parents = section.settings.templateLayerParents;
+  return parents && Object.prototype.hasOwnProperty.call(parents, layerId)
+    ? parents[layerId]
+    : fallback;
+}
+
+const heroTemplateLayers = [
+  { key: "hero-content", parent: null },
+  { key: "eyebrow", parent: "hero-content" },
+  { key: "headline", parent: "hero-content" },
+  { key: "description", parent: "hero-content" },
+  { key: "hero-actions", parent: "hero-content" },
+  { key: "primaryCta", parent: "hero-actions" },
+  { key: "secondaryCta", parent: "hero-actions" },
+  { key: "image", parent: null },
+] as const;
+
+type HeroTemplateLayerKey = (typeof heroTemplateLayers)[number]["key"];
+
+function heroTemplateLayerId(
+  section: Portfolio["sections"][number],
+  key: HeroTemplateLayerKey,
+) {
+  if (key === "hero-content" || key === "hero-actions") {
+    return `${section.id}-${key}`;
+  }
+  if (key === "image") return `${section.id}-image-image`;
+  return `${section.id}-text-${key}`;
+}
+
+function heroTemplateChildren(
+  section: Portfolio["sections"][number],
+  parent: string | null,
+) {
+  return heroTemplateLayers
+    .filter(
+      (layer) =>
+        templateLayerParent(
+          section,
+          heroTemplateLayerId(section, layer.key),
+          layer.parent,
+        ) === parent,
+    )
+    .sort(
+      (left, right) =>
+        templateLayerPosition(
+          section,
+          heroTemplateLayerId(section, left.key),
+          heroTemplateLayers.indexOf(left),
+        ) -
+        templateLayerPosition(
+          section,
+          heroTemplateLayerId(section, right.key),
+          heroTemplateLayers.indexOf(right),
+        ),
+    );
 }
 
 function HeaderSection({
@@ -353,50 +574,67 @@ function HeaderSection({
   isSelected,
   editable,
 }: SectionProps) {
-  const visibleSections = portfolio.sections.filter(
-    (item) => item.visible && !["header", "footer"].includes(item.type),
+  const navigationLinks = resolveHeaderNavigationLinks(
+    section,
+    portfolio.sections,
   );
-  const tabletNavigationMode =
-    section.content.tabletNavigationMode === "menu" ? "menu" : "text";
-  const mobileNavigationMode =
-    section.content.mobileNavigationMode === "menu" ? "menu" : "text";
   return (
     <header
       {...selectable(section, isSelected, onSelect, editable)}
-      className={`portfolio-header navigation-tablet-${tabletNavigationMode} navigation-mobile-${mobileNavigationMode} selectable ${isSelected ? "selected" : ""}`}
+      className={`portfolio-header selectable ${isSelected ? "selected" : ""}`}
     >
-      <button
+      <a
         {...editorTarget(section.id, "text:logoText")}
+        {...anchorAttributes(
+          getElementSettings(section, "text:logoText"),
+          "#",
+        )}
         className="brand"
         style={toElementStyle(getElementSettings(section, "text:logoText"))}
         onClick={(event) => {
+          if (!editable) return;
+          event.preventDefault();
           event.stopPropagation();
-          if (editable)
-            onSelect({
-              kind: "text",
-              sectionId: section.id,
-              field: "logoText",
-              label: "Header Logo",
-              limit: 60,
-            });
+          onSelect({
+            kind: "text",
+            sectionId: section.id,
+            field: "logoText",
+            label: "Header Logo",
+            limit: 60,
+          });
         }}
       >
-        {String(section.content.logoText || portfolio.owner.fullName)}
-      </button>
+        {anchorLabel(
+          getElementSettings(section, "text:logoText"),
+          String(contentValue(section, "logoText") || portfolio.owner.fullName),
+        )}
+      </a>
       <div
-        {...editorTarget(section.id, "layer:navigation")}
+        {...selectableLayer(
+          section.id,
+          "navigation",
+          "Navigation",
+          onSelect,
+          editable,
+        )}
         className="portfolio-navigation"
         style={toElementStyle(getElementSettings(section, "layer:navigation"))}
       >
         <nav className="portfolio-nav-links" aria-label="Primary navigation">
-          {visibleSections.map((item) => (
+          {navigationLinks.map(({ section: item, label, href }) => (
             <a
               key={item.id}
               {...editorTarget(
                 section.id,
                 `layer:navigation-link:${item.id}`,
               )}
-              href={`#${item.type}`}
+              {...anchorAttributes(
+                getElementSettings(
+                  section,
+                  `layer:navigation-link:${item.id}`,
+                ),
+                href,
+              )}
               style={toElementStyle(
                 getElementSettings(
                   section,
@@ -411,51 +649,20 @@ function HeaderSection({
                   kind: "layer",
                   sectionId: section.id,
                   layerId: `navigation-link:${item.id}`,
-                  label: `${item.label} Navigation Link`,
+                  label: `${label} Navigation Link`,
                 });
               }}
             >
-              {item.label}
+              {anchorLabel(
+                getElementSettings(
+                  section,
+                  `layer:navigation-link:${item.id}`,
+                ),
+                label,
+              )}
             </a>
           ))}
         </nav>
-        <details className="portfolio-nav-menu">
-          <summary>
-            <Menu size={18} aria-hidden="true" />
-            <span>Menu</span>
-          </summary>
-          <nav aria-label="Compact navigation">
-            {visibleSections.map((item) => (
-              <a
-                key={item.id}
-                {...editorTarget(
-                  section.id,
-                  `layer:navigation-link:${item.id}`,
-                )}
-                href={`#${item.type}`}
-                style={toElementStyle(
-                  getElementSettings(
-                    section,
-                    `layer:navigation-link:${item.id}`,
-                  ),
-                )}
-                onClick={(event) => {
-                  if (!editable) return;
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onSelect({
-                    kind: "layer",
-                    sectionId: section.id,
-                    layerId: `navigation-link:${item.id}`,
-                    label: `${item.label} Navigation Link`,
-                  });
-                }}
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-        </details>
         <CustomSectionLayers
           section={section}
           parentLayerId="navigation"
@@ -466,11 +673,14 @@ function HeaderSection({
       </div>
       <a
         {...editorTarget(section.id, "text:contactButton")}
+        {...anchorAttributes(
+          getElementSettings(section, "text:contactButton"),
+          "#contact",
+        )}
         className="portfolio-button"
         style={toElementStyle(
           getElementSettings(section, "text:contactButton"),
         )}
-        href={`mailto:${portfolio.owner.email}`}
         onClick={(event) => {
           if (!editable) return;
           event.preventDefault();
@@ -484,7 +694,10 @@ function HeaderSection({
           });
         }}
       >
-        {String(section.content.contactButton || "Contact")}
+        {anchorLabel(
+          getElementSettings(section, "text:contactButton"),
+          String(contentValue(section, "contactButton") || "Contact"),
+        )}
       </a>
       <CustomSectionLayers
         section={section}
@@ -504,114 +717,216 @@ function HeroSection({
   isSelected,
   editable,
 }: SectionProps) {
-  const image = section.content.image as ImageAsset | undefined;
+  const image = contentValue<ImageAsset>(section, "image");
+
+  const renderHeroLayer = (
+    layer: (typeof heroTemplateLayers)[number],
+    ancestors = new Set<HeroTemplateLayerKey>(),
+  ): React.ReactNode => {
+    if (ancestors.has(layer.key)) return null;
+    const nextAncestors = new Set(ancestors).add(layer.key);
+    const layerId = heroTemplateLayerId(section, layer.key);
+    const order = templateLayerPosition(
+      section,
+      layerId,
+      heroTemplateLayers.indexOf(layer),
+    );
+
+    if (layer.key === "hero-content") {
+      return (
+        <div
+          key={layer.key}
+          {...selectableLayer(
+            section.id,
+            "hero-content",
+            "Hero Content",
+            onSelect,
+            editable,
+          )}
+          className="hero-content"
+          style={{
+            order,
+            ...toElementStyle(
+              getElementSettings(section, "layer:hero-content"),
+            ),
+          }}
+        >
+          {heroTemplateChildren(section, "hero-content").map((child) =>
+            renderHeroLayer(child, nextAncestors),
+          )}
+          <CustomSectionLayers
+            section={section}
+            parentLayerId="hero-content"
+            selected={selected}
+            onSelect={onSelect}
+            editable={editable}
+          />
+        </div>
+      );
+    }
+
+    if (layer.key === "hero-actions") {
+      return (
+        <div
+          key={layer.key}
+          {...selectableLayer(
+            section.id,
+            "hero-actions",
+            "Button Group",
+            onSelect,
+            editable,
+          )}
+          className="hero-actions"
+          style={{
+            order,
+            ...toElementStyle(
+              getElementSettings(section, "layer:hero-actions"),
+            ),
+          }}
+        >
+          {heroTemplateChildren(section, "hero-actions").map((child) =>
+            renderHeroLayer(child, nextAncestors),
+          )}
+          <CustomSectionLayers
+            section={section}
+            parentLayerId="hero-actions"
+            selected={selected}
+            onSelect={onSelect}
+            editable={editable}
+          />
+        </div>
+      );
+    }
+
+    if (layer.key === "image") {
+      return (
+        <button
+          key={layer.key}
+          type="button"
+          {...editorTarget(section.id, "image:image")}
+          className="image-slot hero-image"
+          style={{
+            order,
+            ...toElementStyle(getElementSettings(section, "image:image")),
+            ...toImageFrameStyle(image),
+          }}
+          onClick={(event) => {
+            if (!editable) return;
+            event.preventDefault();
+            event.stopPropagation();
+            onSelect({
+              kind: "image",
+              sectionId: section.id,
+              field: "image",
+              label: "Hero Image",
+              slot: "hero-image",
+            });
+          }}
+        >
+          {image?.url ? (
+            <img
+              src={image.url}
+              alt={image.alt || ""}
+              style={toImageContentStyle(image)}
+            />
+          ) : (
+            <span>Hero image slot · 4:5 or 1:1</span>
+          )}
+        </button>
+      );
+    }
+
+    if (layer.key === "primaryCta" || layer.key === "secondaryCta") {
+      const primary = layer.key === "primaryCta";
+      const settings = getElementSettings(section, `text:${layer.key}`);
+      return (
+        <a
+          key={layer.key}
+          {...editorTarget(section.id, `text:${layer.key}`)}
+          {...anchorAttributes(
+            settings,
+            primary ? "#projects" : `mailto:${portfolio.owner.email}`,
+          )}
+          className={`portfolio-button${primary ? "" : " secondary"}`}
+          style={{ order, ...toElementStyle(settings) }}
+          onClick={(event) => {
+            if (!editable) return;
+            event.preventDefault();
+            event.stopPropagation();
+            onSelect({
+              kind: "text",
+              sectionId: section.id,
+              field: layer.key,
+              label: primary ? "Primary Button" : "Secondary Button",
+              limit: 40,
+            });
+          }}
+        >
+          {anchorLabel(
+            settings,
+            getHeroActionContent(
+              section,
+              layer.key,
+              primary ? "View Projects" : "Contact Me",
+            ),
+          )}
+        </a>
+      );
+    }
+
+    const textLayer = {
+      eyebrow: {
+        label: "Hero Eyebrow",
+        limit: 80,
+        value: String(contentValue(section, "eyebrow") || ""),
+        className: "eyebrow",
+        as: "span" as const,
+      },
+      headline: {
+        label: "Hero Headline",
+        limit: 120,
+        value: String(contentValue(section, "headline") || ""),
+        className: "",
+        as: "h1" as const,
+      },
+      description: {
+        label: "Hero Description",
+        limit: 250,
+        value: String(
+          contentValue(section, "description") ||
+            portfolio.owner.shortDescription,
+        ),
+        className: "hero-description",
+        as: "p" as const,
+      },
+    }[layer.key];
+
+    return (
+      <EditableText
+        key={layer.key}
+        section={section}
+        field={layer.key}
+        label={textLayer.label}
+        limit={textLayer.limit}
+        value={textLayer.value}
+        selected={selected}
+        onSelect={onSelect}
+        as={textLayer.as}
+        className={textLayer.className}
+        style={{ order }}
+      />
+    );
+  };
+
   return (
     <section
       id="hero"
       {...selectable(section, isSelected, onSelect, editable)}
       className={`portfolio-section portfolio-hero selectable ${isSelected ? "selected" : ""}`}
     >
-      <div
-        {...editorTarget(section.id, "layer:hero-content")}
-        style={toElementStyle(getElementSettings(section, "layer:hero-content"))}
-      >
-        <EditableText
-          section={section}
-          field="eyebrow"
-          label="Hero Eyebrow"
-          limit={80}
-          value={String(section.content.eyebrow || "")}
-          selected={selected}
-          onSelect={onSelect}
-          className="eyebrow"
-        />
-        <EditableText
-          section={section}
-          field="headline"
-          label="Hero Headline"
-          limit={120}
-          value={String(section.content.headline || "")}
-          selected={selected}
-          onSelect={onSelect}
-          as="h1"
-        />
-        <EditableText
-          section={section}
-          field="description"
-          label="Hero Description"
-          limit={250}
-          value={String(
-            section.content.description || portfolio.owner.shortDescription,
-          )}
-          selected={selected}
-          onSelect={onSelect}
-          as="p"
-        />
-        <div className="hero-actions">
-          <a
-            {...editorTarget(section.id, "text:primaryCta")}
-            className="portfolio-button"
-            style={toElementStyle(
-              getElementSettings(section, "text:primaryCta"),
-            )}
-            href="#projects"
-          >
-            {String(section.content.primaryCta || "View Projects")}
-          </a>
-          <a
-            {...editorTarget(section.id, "text:secondaryCta")}
-            className="portfolio-button secondary"
-            style={toElementStyle(
-              getElementSettings(section, "text:secondaryCta"),
-            )}
-            href={`mailto:${portfolio.owner.email}`}
-          >
-            {String(section.content.secondaryCta || "Contact Me")}
-          </a>
-        </div>
-        <div className="social-row">
-          {portfolio.owner.socialLinks.map((link) => (
-            <a key={link.platform} href={link.url}>
-              {link.platform}
-            </a>
-          ))}
-        </div>
-        <CustomSectionLayers
-          section={section}
-          parentLayerId="hero-content"
-          selected={selected}
-          onSelect={onSelect}
-          editable={editable}
-        />
-      </div>
-      <button
-        {...editorTarget(section.id, "image:image")}
-        className="image-slot hero-image"
-        style={{
-          ...toElementStyle(getElementSettings(section, "image:image")),
-          ...toImageFrameStyle(image),
-        }}
-        onClick={(event) => {
-          event.stopPropagation();
-          onSelect({
-            kind: "image",
-            sectionId: section.id,
-            field: "image",
-            label: "Hero Image",
-            slot: "hero-image",
-          });
-        }}
-      >
-        {image?.url ? (
-          <img
-            src={image.url}
-            alt={image.alt || ""}
-            style={toImageContentStyle(image)}
-          />
-        ) : (
-          <span>Hero image slot · 4:5 or 1:1</span>
-        )}
-      </button>
+      {heroTemplateChildren(section, null).map((layer) =>
+        renderHeroLayer(layer),
+      )}
       <CustomSectionLayers
         section={section}
         selected={selected}
@@ -629,7 +944,8 @@ function ProjectsSection({
   isSelected,
   editable,
 }: SectionProps) {
-  const items = (section.content.items || []) as ProjectItem[];
+  const items = contentValue<ProjectItem[]>(section, "items") || [];
+  const rootTextFields = projectTextFields(section, null);
 
   return (
     <section
@@ -642,16 +958,48 @@ function ProjectsSection({
         onSelect={onSelect}
         editable={editable}
       />
+      {rootTextFields.map((field) => (
+        <ProjectTextLayer
+          key={field}
+          section={section}
+          field={field}
+          selected={selected}
+          onSelect={onSelect}
+          style={{
+            order:
+              templateLayerPosition(
+                section,
+                `${section.id}-text-${field}`,
+                field === "title" ? 1 : 2,
+              ) - 10,
+          }}
+        />
+      ))}
       <div
-        {...editorTarget(section.id, "layer:project-grid")}
+        {...selectableLayer(
+          section.id,
+          "project-grid",
+          "Projects List",
+          onSelect,
+          editable,
+        )}
         id="project-list"
         className="project-grid"
-        style={toElementStyle(
-          getElementSettings(section, "layer:project-grid"),
-        )}
+        style={{
+          order:
+            templateLayerPosition(
+              section,
+              `${section.id}-projects-list`,
+              1,
+            ) - 10,
+          ...toElementStyle(
+            getElementSettings(section, "layer:project-grid"),
+          ),
+        }}
       >
         {items.map((project, projectIndex) => (
           <button
+            type="button"
             {...editorTarget(section.id, `project:${project.id}`)}
             key={project.id || `project-${projectIndex}`}
             className="portfolio-card project-card"
@@ -659,6 +1007,8 @@ function ProjectsSection({
               getElementSettings(section, `project:${project.id}`),
             )}
             onClick={(event) => {
+              if (!editable) return;
+              event.preventDefault();
               event.stopPropagation();
               onSelect({
                 kind: "project",
@@ -668,6 +1018,7 @@ function ProjectsSection({
             }}
           >
             <div
+              key={`${project.id || projectIndex}-image`}
               {...editorTarget(section.id, `layer:project:${project.id}:image`)}
               className="project-thumb"
               style={{
@@ -700,6 +1051,7 @@ function ProjectsSection({
               )}
             </div>
             <strong
+              key={`${project.id || projectIndex}-title`}
               {...editorTarget(section.id, `layer:project:${project.id}:title`)}
               style={toElementStyle(
                 getElementSettings(
@@ -720,6 +1072,7 @@ function ProjectsSection({
               {project.title}
             </strong>
             <p
+              key={`${project.id || projectIndex}-description`}
               {...editorTarget(
                 section.id,
                 `layer:project:${project.id}:description`,
@@ -743,6 +1096,7 @@ function ProjectsSection({
               {project.description}
             </p>
             <div
+              key={`${project.id || projectIndex}-tags`}
               {...editorTarget(section.id, `layer:project:${project.id}:tags`)}
               className="tag-row"
               style={toElementStyle(
@@ -763,6 +1117,7 @@ function ProjectsSection({
               ))}
             </div>
             <span
+              key={`${project.id || projectIndex}-cta`}
               {...editorTarget(section.id, `layer:project:${project.id}:cta`)}
               className="project-cta-layer"
               style={toElementStyle(
@@ -780,8 +1135,13 @@ function ProjectsSection({
             >
               {project.projectUrl ? "View project" : "Project details"}
             </span>
-            {project.featured && <small>Featured</small>}
+            {project.featured && (
+              <small key={`${project.id || projectIndex}-featured`}>
+                Featured
+              </small>
+            )}
             <CustomSectionLayers
+              key={`${project.id || projectIndex}-custom-layers`}
               section={section}
               parentLayerId={`project:${project.id}`}
               selected={selected}
@@ -815,7 +1175,7 @@ function CertificationsSection({
   isSelected,
   editable,
 }: SectionProps) {
-  const items = (section.content.items || []) as CertificationItem[];
+  const items = contentValue<CertificationItem[]>(section, "items") || [];
   return (
     <section
       id="certifications"
@@ -829,7 +1189,13 @@ function CertificationsSection({
         editable={editable}
       />
       <div
-        {...editorTarget(section.id, "layer:certification-list")}
+        {...selectableLayer(
+          section.id,
+          "certification-list",
+          "Certification List",
+          onSelect,
+          editable,
+        )}
         className="cert-list"
         style={toElementStyle(
           getElementSettings(section, "layer:certification-list"),
@@ -837,6 +1203,7 @@ function CertificationsSection({
       >
         {items.map((item) => (
           <button
+            type="button"
             {...editorTarget(section.id, `certification:${item.id}`)}
             key={item.id}
             className="portfolio-card cert-card"
@@ -844,6 +1211,8 @@ function CertificationsSection({
               getElementSettings(section, `certification:${item.id}`),
             )}
             onClick={(event) => {
+              if (!editable) return;
+              event.preventDefault();
               event.stopPropagation();
               onSelect({
                 kind: "certification",
@@ -927,7 +1296,7 @@ function ServicesSection({
   isSelected,
   editable,
 }: SectionProps) {
-  const items = (section.content.items || []) as ServiceItem[];
+  const items = contentValue<ServiceItem[]>(section, "items") || [];
   return (
     <section
       id="services"
@@ -941,7 +1310,13 @@ function ServicesSection({
         editable={editable}
       />
       <div
-        {...editorTarget(section.id, "layer:service-cards")}
+        {...selectableLayer(
+          section.id,
+          "service-cards",
+          "Service Cards",
+          onSelect,
+          editable,
+        )}
         className="service-grid"
         style={toElementStyle(
           getElementSettings(section, "layer:service-cards"),
@@ -949,6 +1324,7 @@ function ServicesSection({
       >
         {items.map((item) => (
           <button
+            type="button"
             {...editorTarget(section.id, `service:${item.id}`)}
             key={item.id}
             className="portfolio-card service-card"
@@ -956,6 +1332,8 @@ function ServicesSection({
               getElementSettings(section, `service:${item.id}`),
             )}
             onClick={(event) => {
+              if (!editable) return;
+              event.preventDefault();
               event.stopPropagation();
               onSelect({
                 kind: "service",
@@ -1032,7 +1410,7 @@ function AboutSection({
   isSelected,
   editable,
 }: SectionProps) {
-  const skills = (section.content.skills || []) as string[];
+  const skills = contentValue<string[]>(section, "skills") || [];
   return (
     <section
       id="about"
@@ -1040,7 +1418,13 @@ function AboutSection({
       className={`portfolio-section portfolio-about selectable ${isSelected ? "selected" : ""}`}
     >
       <div
-        {...editorTarget(section.id, "layer:about-content")}
+        {...selectableLayer(
+          section.id,
+          "about-content",
+          "About Content",
+          onSelect,
+          editable,
+        )}
         style={toElementStyle(
           getElementSettings(section, "layer:about-content"),
         )}
@@ -1058,7 +1442,7 @@ function AboutSection({
           label="About Description"
           limit={1000}
           value={String(
-            section.content.description ||
+            contentValue(section, "description") ||
               portfolio.owner.aboutDescription ||
               "",
           )}
@@ -1084,7 +1468,13 @@ function AboutSection({
         />
       </div>
       <aside
-        {...editorTarget(section.id, "layer:about-panel")}
+        {...selectableLayer(
+          section.id,
+          "about-panel",
+          "About Contact Panel",
+          onSelect,
+          editable,
+        )}
         style={toElementStyle(getElementSettings(section, "layer:about-panel"))}
       >
         <span>
@@ -1093,7 +1483,7 @@ function AboutSection({
         <span>
           <Mail size={16} /> {portfolio.owner.email}
         </span>
-        <strong>{String(section.content.availability || "Available")}</strong>
+        <strong>{String(contentValue(section, "availability") || "Available")}</strong>
         <CustomSectionLayers
           section={section}
           parentLayerId="about-panel"
@@ -1122,6 +1512,7 @@ function FooterSection({
 }: SectionProps) {
   return (
     <footer
+      id="contact"
       {...selectable(section, isSelected, onSelect, editable)}
       className={`portfolio-footer selectable ${isSelected ? "selected" : ""}`}
     >
@@ -1140,7 +1531,7 @@ function FooterSection({
             });
         }}
       >
-        {String(section.content.logoText || portfolio.owner.fullName)}
+        {String(contentValue(section, "logoText") || portfolio.owner.fullName)}
       </strong>
       <span
         {...editorTarget(section.id, "text:message")}
@@ -1157,11 +1548,14 @@ function FooterSection({
             });
         }}
       >
-        {String(section.content.message || "")}
+        {String(contentValue(section, "message") || "")}
       </span>
       <a
         {...editorTarget(section.id, "layer:back-to-top")}
-        href="#top"
+        {...anchorAttributes(
+          getElementSettings(section, "layer:back-to-top"),
+          "#top",
+        )}
         style={toElementStyle(getElementSettings(section, "layer:back-to-top"))}
         onClick={(event) => {
           if (!editable) return;
@@ -1175,7 +1569,10 @@ function FooterSection({
           });
         }}
       >
-        Back to top
+        {anchorLabel(
+          getElementSettings(section, "layer:back-to-top"),
+          "Back to top",
+        )}
       </a>
       <small
         {...editorTarget(section.id, "text:copyright")}
@@ -1192,7 +1589,7 @@ function FooterSection({
             });
         }}
       >
-        {String(section.content.copyright || "")}
+        {String(contentValue(section, "copyright") || "")}
       </small>
       <CustomSectionLayers
         section={section}
@@ -1205,6 +1602,7 @@ function FooterSection({
 }
 
 function BlankSection({
+  portfolio,
   section,
   selected,
   onSelect,
@@ -1213,6 +1611,12 @@ function BlankSection({
 }: SectionProps) {
   const rootLayers = (section.customLayers || []).filter(
     (layer) => !layer.parentLayerId,
+  );
+  const hasNestedSections = portfolio.sections.some(
+    (candidate) =>
+      candidate.visible &&
+      candidate.parentSectionId === section.id &&
+      candidate.parentLayerId === undefined,
   );
   return (
     <section
@@ -1225,7 +1629,7 @@ function BlankSection({
         onSelect={onSelect}
         editable={editable}
       />
-      {editable && rootLayers.length === 0 && (
+      {editable && rootLayers.length === 0 && !hasNestedSections && (
         <div
           aria-hidden="true"
           style={{
@@ -1273,6 +1677,58 @@ function CustomSectionLayers({
           editable={editable}
         />
         ))}
+      <NestedSections
+        section={section}
+        parentLayerId={parentLayerId}
+        selected={selected}
+        onSelect={onSelect}
+        editable={editable}
+      />
+    </>
+  );
+}
+
+function NestedSections({
+  section,
+  parentLayerId,
+  selected,
+  onSelect,
+  editable,
+}: {
+  section: Portfolio["sections"][number];
+  parentLayerId?: string;
+  selected?: SelectedElement;
+  onSelect: Props["onSelect"];
+  editable?: boolean;
+}) {
+  const portfolio = React.useContext(PortfolioRenderContext);
+  if (!portfolio) return null;
+
+  const nestedSections = portfolio.sections
+    .filter(
+      (candidate) =>
+        candidate.visible &&
+        candidate.parentSectionId === section.id &&
+        candidate.parentLayerId === parentLayerId,
+    )
+    .sort((a, b) => a.order - b.order);
+
+  return (
+    <>
+      {nestedSections.map((nestedSection) => (
+        <SectionRenderer
+          key={nestedSection.id}
+          portfolio={portfolio}
+          section={nestedSection}
+          selected={selected}
+          onSelect={onSelect}
+          isSelected={
+            selected?.kind === "section" &&
+            selected.sectionId === nestedSection.id
+          }
+          editable={editable}
+        />
+      ))}
     </>
   );
 }
@@ -1290,6 +1746,7 @@ function CustomLayerView({
   onSelect: Props["onSelect"];
   editable?: boolean;
 }) {
+  const portfolio = React.useContext(PortfolioRenderContext);
   const layerId = `custom:${layer.id}`;
   const isSelected =
     selected?.kind === "layer" &&
@@ -1311,7 +1768,13 @@ function CustomLayerView({
   const style = toElementStyle(getElementSettings(section, `layer:${layerId}`));
 
   if (layer.type === "div") {
-    const isEmpty = !layer.children?.length;
+    const hasNestedSections = portfolio?.sections.some(
+      (candidate) =>
+        candidate.visible &&
+        candidate.parentSectionId === section.id &&
+        candidate.parentLayerId === `custom:${layer.id}`,
+    );
+    const isEmpty = !layer.children?.length && !hasNestedSections;
     return (
       <div
         {...target}
@@ -1330,6 +1793,13 @@ function CustomLayerView({
             editable={editable}
           />
         ))}
+        <NestedSections
+          section={section}
+          parentLayerId={`custom:${layer.id}`}
+          selected={selected}
+          onSelect={onSelect}
+          editable={editable}
+        />
         {editable && isEmpty && (
           <span className="custom-layer-placeholder">Empty Div</span>
         )}
@@ -1393,40 +1863,40 @@ function ProjectSectionIntro({
     titleSettings.spanSection ||
     descriptionSettings.width ||
     descriptionSettings.spanSection;
+  const nestedTextFields = projectTextFields(section, "section-heading");
 
   return (
     <div
-      {...editorTarget(section.id, "layer:section-heading")}
+      {...selectableLayer(
+        section.id,
+        "section-heading",
+        "Project Content",
+        onSelect,
+        editable,
+      )}
       id="project-content"
       className="section-heading"
       style={{
+        order:
+          templateLayerPosition(
+            section,
+            `${section.id}-project-content`,
+            0,
+          ) - 10,
         ...toElementStyle(contentSettings),
         maxWidth: shouldExpand ? "none" : undefined,
         width: shouldExpand ? "100%" : undefined,
       }}
     >
-      <EditableText
-        section={section}
-        field="title"
-        label="Projects Title"
-        limit={80}
-        value={String(section.content.title || "Projects")}
-        selected={selected}
-        onSelect={onSelect}
-        as="h2"
-      />
-      <EditableText
-        section={section}
-        field="description"
-        label="Projects Description"
-        limit={250}
-        value={String(
-          section.content.description || section.content.subtitle || "",
-        )}
-        selected={selected}
-        onSelect={onSelect}
-        as="p"
-      />
+      {nestedTextFields.map((field) => (
+        <ProjectTextLayer
+          key={field}
+          section={section}
+          field={field}
+          selected={selected}
+          onSelect={onSelect}
+        />
+      ))}
       <CustomSectionLayers
         section={section}
         parentLayerId="section-heading"
@@ -1435,6 +1905,64 @@ function ProjectSectionIntro({
         editable={editable}
       />
     </div>
+  );
+}
+
+type ProjectTextField = "title" | "description";
+
+function projectTextFields(
+  section: Portfolio["sections"][number],
+  parentLayerId: "section-heading" | null,
+) {
+  return (["title", "description"] as ProjectTextField[])
+    .filter(
+      (field) =>
+        templateLayerParent(
+          section,
+          `${section.id}-text-${field}`,
+          "section-heading",
+        ) === parentLayerId,
+    )
+    .sort(
+      (left, right) =>
+        templateLayerPosition(section, `${section.id}-text-${left}`, 0) -
+        templateLayerPosition(section, `${section.id}-text-${right}`, 1),
+    );
+}
+
+function ProjectTextLayer({
+  section,
+  field,
+  selected,
+  onSelect,
+  style,
+}: {
+  section: Portfolio["sections"][number];
+  field: ProjectTextField;
+  selected?: SelectedElement;
+  onSelect: Props["onSelect"];
+  style?: React.CSSProperties;
+}) {
+  const title = field === "title";
+  return (
+    <EditableText
+      section={section}
+      field={field}
+      label={title ? "Projects Title" : "Projects Description"}
+      limit={title ? 80 : 250}
+      value={String(
+        title
+          ? contentValue(section, "title") || "Projects"
+          : contentValue(section, "description") || contentValue(section, "subtitle") || "",
+      )}
+      selected={selected}
+      onSelect={onSelect}
+      as={title ? "h2" : "p"}
+      className={
+        title ? "project-section-title" : "project-section-description"
+      }
+      style={style}
+    />
   );
 }
 
@@ -1467,7 +1995,13 @@ function SectionHeading({
 
   return (
     <div
-      {...editorTarget(section.id, "layer:section-heading")}
+      {...selectableLayer(
+        section.id,
+        "section-heading",
+        "Section Heading",
+        onSelect,
+        editable,
+      )}
       className="section-heading"
       style={{
         ...toElementStyle(headingLayerSettings),
@@ -1480,18 +2014,18 @@ function SectionHeading({
         field="title"
         label={`${section.label} Title`}
         limit={titleLimit}
-        value={String(section.content.title || section.label)}
+        value={String(contentValue(section, "title") || section.label)}
         selected={selected}
         onSelect={onSelect}
         as="h2"
       />
-      {section.content.subtitle !== undefined && (
+      {hasContentField(section, "subtitle") && (
         <EditableText
           section={section}
           field="subtitle"
           label={`${section.label} Subtitle`}
           limit={250}
-          value={String(section.content.subtitle || "")}
+          value={String(contentValue(section, "subtitle") || "")}
           selected={selected}
           onSelect={onSelect}
           as="p"
@@ -1518,6 +2052,7 @@ function EditableText({
   onSelect,
   as = "span",
   className = "",
+  style: styleOverride,
 }: {
   section: Portfolio["sections"][number];
   field: string;
@@ -1528,6 +2063,7 @@ function EditableText({
   onSelect: Props["onSelect"];
   as?: keyof JSX.IntrinsicElements;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const sectionId = section.id;
   const Tag = as;
@@ -1538,7 +2074,10 @@ function EditableText({
   const updateSectionContent = useEditorStore(
     (state) => state.updateSectionContent,
   );
-  const style = toElementStyle(getElementSettings(section, `text:${field}`));
+  const style = {
+    ...toElementStyle(getElementSettings(section, `text:${field}`)),
+    ...styleOverride,
+  };
   return (
     <Tag
       {...editorTarget(sectionId, `text:${field}`)}

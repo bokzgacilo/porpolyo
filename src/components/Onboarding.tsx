@@ -16,7 +16,16 @@ import {
   Text,
   Textarea,
 } from "@chakra-ui/react";
-import { ArrowLeft, ArrowRight, Check, ImagePlus, LayoutTemplate } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  File,
+  Files,
+  ImagePlus,
+  LayoutTemplate,
+  Lock,
+} from "lucide-react";
 import { nanoid } from "nanoid";
 import { useRef, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
@@ -61,13 +70,15 @@ const defaults: FormValues = {
 };
 
 const steps = [
-  { number: 1, label: "Template" },
-  { number: 2, label: "Palette" },
-  { number: 3, label: "Details" },
+  { number: 1, label: "Type" },
+  { number: 2, label: "Template" },
+  { number: 3, label: "Palette" },
+  { number: 4, label: "Basic information" },
 ];
 
 export function Onboarding({ onBack, onBuild }: Props) {
   const [step, setStep] = useState(1);
+  const [portfolioType, setPortfolioType] = useState<"single-page">("single-page");
   const [templateId, setTemplateId] = useState(templates[0].id);
   const [paletteId, setPaletteId] = useState(templates[0].defaultPaletteId);
   const [profileImage, setProfileImage] = useState<ImageAsset | undefined>();
@@ -195,8 +206,8 @@ export function Onboarding({ onBack, onBuild }: Props) {
         <Stack gap={{ base: 8, md: 10 }}>
           <Flex
             justify="space-between"
-            align={{ base: "flex-start", md: "flex-end" }}
-            direction={{ base: "column", md: "row" }}
+            align={{ base: "flex-start", lg: "flex-end" }}
+            direction={{ base: "column", lg: "row" }}
             gap={6}
           >
             <Stack gap={2} maxW="2xl">
@@ -204,20 +215,105 @@ export function Onboarding({ onBack, onBuild }: Props) {
                 Create a portfolio
               </Badge>
               <Heading size={{ base: "2xl", md: "3xl" }} letterSpacing="-0.02em">
-                {step === 1 && "Choose your starting point"}
-                {step === 2 && "Pick a color direction"}
-                {step === 3 && "Tell us about your work"}
+                {step === 1 && "Choose your portfolio type"}
+                {step === 2 && "Choose your starting point"}
+                {step === 3 && "Pick a color direction"}
+                {step === 4 && "Tell us about your work"}
               </Heading>
               <Text color="fg.muted" fontSize={{ base: "md", md: "lg" }}>
-                {step === 1 && "Select a layout you can refine later in the visual editor."}
-                {step === 2 && "Choose a palette for the initial design. Every color remains editable."}
-                {step === 3 && "Add the core information used to generate your portfolio content."}
+                {step === 1 && "Choose how visitors will move through your portfolio."}
+                {step === 2 && "Select a layout you can refine later in the visual editor."}
+                {step === 3 && "Choose a palette for the initial design. Every color remains editable."}
+                {step === 4 && "Add the core information used to generate your portfolio content."}
               </Text>
             </Stack>
             <StepIndicator currentStep={step} />
           </Flex>
 
           {step === 1 && (
+            <Stack gap={6}>
+              <SimpleGrid columns={{ base: 1, md: 2 }} gap={5} maxW="4xl">
+                <Button
+                  type="button"
+                  variant="plain"
+                  display="block"
+                  h="auto"
+                  p={6}
+                  whiteSpace="normal"
+                  textAlign="left"
+                  aria-pressed={portfolioType === "single-page"}
+                  bg="bg.panel"
+                  rounded="xl"
+                  border="1px solid"
+                  borderColor="blue.solid"
+                  boxShadow="0 0 0 1px var(--chakra-colors-blue-solid)"
+                  transition="border-color 0.2s, box-shadow 0.2s, transform 0.2s"
+                  _hover={{ shadow: "md", transform: "translateY(-2px)" }}
+                  _focusVisible={{ outline: "2px solid", outlineColor: "blue.solid", outlineOffset: "2px" }}
+                  onClick={() => setPortfolioType("single-page")}
+                >
+                  <Stack gap={5}>
+                    <Flex justify="space-between" align="flex-start" gap={4}>
+                      <Flex boxSize={12} rounded="lg" bg="blue.subtle" color="blue.fg" align="center" justify="center">
+                        <File size={23} aria-hidden="true" />
+                      </Flex>
+                      <Flex bg="blue.solid" color="blue.contrast" rounded="full" boxSize={6} align="center" justify="center">
+                        <Check size={14} aria-hidden="true" />
+                      </Flex>
+                    </Flex>
+                    <Stack gap={1.5}>
+                      <Heading size="md">Single page</Heading>
+                      <Text color="fg.muted" fontSize="sm">
+                        Keep every section in one focused, scrollable portfolio.
+                      </Text>
+                    </Stack>
+                  </Stack>
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="plain"
+                  display="block"
+                  h="auto"
+                  p={6}
+                  whiteSpace="normal"
+                  textAlign="left"
+                  disabled
+                  aria-describedby="multipage-status"
+                  bg="bg.subtle"
+                  rounded="xl"
+                  border="1px solid"
+                  borderColor="border"
+                  opacity={0.7}
+                  cursor="not-allowed"
+                >
+                  <Stack gap={5}>
+                    <Flex justify="space-between" align="flex-start" gap={4}>
+                      <Flex boxSize={12} rounded="lg" bg="bg.muted" color="fg.muted" align="center" justify="center">
+                        <Files size={23} aria-hidden="true" />
+                      </Flex>
+                      <Badge id="multipage-status" variant="subtle" colorPalette="gray" rounded="full" px={2.5}>
+                        <Lock size={12} aria-hidden="true" /> Locked
+                      </Badge>
+                    </Flex>
+                    <Stack gap={1.5}>
+                      <Heading size="md">Multipage</Heading>
+                      <Text color="fg.muted" fontSize="sm">
+                        Organize your work across separate pages. Coming later.
+                      </Text>
+                    </Stack>
+                  </Stack>
+                </Button>
+              </SimpleGrid>
+              <Flex justify="flex-end">
+                <Button size="lg" colorPalette="blue" onClick={() => setStep(2)}>
+                  Continue to templates <ArrowRight size={17} />
+                </Button>
+              </Flex>
+            </Stack>
+          )}
+
+          {step === 2 && (
             <Stack gap={6}>
               <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} gap={6}>
                 {templates.map((template) => {
@@ -264,15 +360,18 @@ export function Onboarding({ onBack, onBuild }: Props) {
                   );
                 })}
               </SimpleGrid>
-              <Flex justify="flex-end">
-                <Button size="lg" colorPalette="blue" onClick={() => setStep(2)}>
+              <Flex justify="space-between" gap={3}>
+                <Button size="lg" variant="outline" onClick={() => setStep(1)}>
+                  <ArrowLeft size={17} /> Back
+                </Button>
+                <Button size="lg" colorPalette="blue" onClick={() => setStep(3)}>
                   Continue to colors <ArrowRight size={17} />
                 </Button>
               </Flex>
             </Stack>
           )}
 
-          {step === 2 && (
+          {step === 3 && (
             <Stack gap={6}>
               <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} gap={5}>
                 {palettes.map((item) => {
@@ -320,17 +419,17 @@ export function Onboarding({ onBack, onBuild }: Props) {
                 })}
               </SimpleGrid>
               <Flex justify="space-between" gap={3}>
-                <Button size="lg" variant="outline" onClick={() => setStep(1)}>
+                <Button size="lg" variant="outline" onClick={() => setStep(2)}>
                   <ArrowLeft size={17} /> Back
                 </Button>
-                <Button size="lg" colorPalette="blue" onClick={() => setStep(3)}>
+                <Button size="lg" colorPalette="blue" onClick={() => setStep(4)}>
                   Continue to details <ArrowRight size={17} />
                 </Button>
               </Flex>
             </Stack>
           )}
 
-          {step === 3 && (
+          {step === 4 && (
             <Box as="form" onSubmit={handleSubmit(submit)}>
               <Stack gap={5}>
                 <FormSection title="Profile" description="The main details displayed throughout your portfolio.">
@@ -426,7 +525,7 @@ export function Onboarding({ onBack, onBuild }: Props) {
                 )}
 
                 <Flex justify="space-between" gap={3} pt={1}>
-                  <Button size="lg" type="button" variant="outline" onClick={() => setStep(2)} disabled={isBuilding}>
+                  <Button size="lg" type="button" variant="outline" onClick={() => setStep(3)} disabled={isBuilding}>
                     <ArrowLeft size={17} /> Back
                   </Button>
                   <Button size="lg" type="submit" colorPalette="blue" loading={isBuilding} loadingText="Creating project" disabled={isUploading}>

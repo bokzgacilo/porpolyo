@@ -6,6 +6,7 @@ import {
 } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import type { TypographyUnit } from "../../types/portfolio";
+import { useEditorControlSize } from "../editor/EditorSizeContext";
 
 const typographyUnits: TypographyUnit[] = ["rem", "em", "px", "%", "ch"];
 
@@ -20,6 +21,7 @@ export function TypographyUnitInput({
   unit: TypographyUnit;
   onChange: (value: number | undefined, unit: TypographyUnit) => void;
 }) {
+  const controlSize = useEditorControlSize();
   const externalValue = value?.toString() ?? "";
   const [draft, setDraft] = useState(externalValue);
 
@@ -38,7 +40,7 @@ export function TypographyUnitInput({
         <NumberInput.Root
           flex="1"
           minW={0}
-          size="xs"
+          size={controlSize}
           value={draft}
           onValueChange={(details) => setDraft(details.value)}
         >
@@ -50,7 +52,7 @@ export function TypographyUnitInput({
             }}
           />
         </NumberInput.Root>
-        <NativeSelect.Root size="xs" width="88px" flexShrink={0}>
+        <NativeSelect.Root size={controlSize} width="88px" flexShrink={0}>
           <NativeSelect.Field
             aria-label={`${label} unit`}
             value={unit}

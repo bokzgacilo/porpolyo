@@ -1,0 +1,122 @@
+{
+  "id": "minimalist",
+  "name": "Minimalist",
+  "thumbnail": "Quiet typography, airy spacing, subtle dividers",
+  "description": "A flat, monochrome developer portfolio with editorial rhythm, sticky nav, and a focused project grid.",
+  "supportedSections": ["header", "hero", "projects", "about", "footer"],
+  "sectionVariants": {
+    "hero": ["Text left, image right", "Centered text", "Image left, text right"],
+    "projects": ["Editorial list", "Clean grid"],
+    "about": ["Narrow essay", "Split profile"]
+  },
+  "defaultPaletteId": "mono-ink",
+  "typography": "Arial-style sans with tight, editorial line height",
+  "spacing": "Large whitespace and narrow text measures",
+  "borders": "Hairline dividers",
+  "cards": "Low-contrast surfaces",
+  "buttons": "Slim rounded buttons",
+  "imageShapes": "Soft rounded rectangles",
+  "structure": {
+    "settings": {
+      "stickyHeader": true,
+      "public": false,
+      "breakpointWidths": { "tablet": 768, "mobile": 390 },
+      "bodyLayout": {
+        "layoutMode": "stack",
+        "stackDirection": "column",
+        "stackAlign": "stretch",
+        "stackJustify": "flex-start",
+        "stackGap": 0,
+        "layoutWrap": false
+      }
+    },
+    "sections": [
+      {
+        "key": "header",
+        "type": "header",
+        "label": "Header",
+        "visible": true,
+        "locked": true,
+        "content": {
+          "logoText": "{{owner.fullName}}",
+          "navigation": {
+            "type": "div",
+            "links": [
+              { "sectionType": "hero", "label": "Hero", "href": "#hero" },
+              { "sectionType": "about", "label": "About", "href": "#about" },
+              { "sectionType": "projects", "label": "Projects", "href": "#projects" }
+            ]
+          },
+          "contactButton": "Contact"
+        },
+        "settings": { "contentWidth": "wide" }
+      },
+      {
+        "key": "hero",
+        "type": "hero",
+        "label": "Hero",
+        "visible": true,
+        "locked": false,
+        "variant": "Text left, image right",
+        "layerOrder": ["hero-content", "image:image"],
+        "content": {
+          "eyebrow": "{{owner.professionalTitle}}",
+          "headline": "I build useful digital experiences.",
+          "description": "I create responsive websites, web applications, and digital solutions using modern technologies.",
+          "actions": {
+            "type": "div",
+            "primaryCta": "View my projects",
+            "secondaryCta": "Contact me"
+          },
+          "image": "{{owner.profileImage}}"
+        },
+        "settings": { "contentWidth": "wide", "alignment": "left" }
+      },
+      {
+        "key": "about",
+        "type": "about",
+        "label": "About",
+        "visible": true,
+        "locked": false,
+        "content": {
+          "title": "About me",
+          "description": "{{aboutDescription}}",
+          "skills": ["HTML", "CSS", "JavaScript", "React", "Next.js", "Node.js", "Shopify", "Salesforce"],
+          "experienceSummary": "Focused on building simple, accessible, and user-friendly web experiences.",
+          "availability": "Open to selected projects",
+          "resumeUrl": ""
+        },
+        "settings": { "spacing": "large", "contentWidth": "standard" }
+      },
+      {
+        "key": "projects",
+        "type": "projects",
+        "label": "Projects",
+        "visible": true,
+        "locked": false,
+        "content": {
+          "title": "Selected projects",
+          "description": "A focused sample of recent work, roles, and outcomes.",
+          "items": [
+            { "title": "Portfolio Builder", "description": "A visual editor that helps users create and customize their own portfolio websites.", "tags": ["React", "Design System"], "projectUrl": "", "repositoryUrl": "", "role": "Lead Developer", "completionDate": "2026", "featured": true },
+            { "title": "SEO Audit Tool", "description": "A website auditing tool that evaluates metadata, accessibility, performance, and indexing readiness.", "tags": ["Automation", "Web Performance"], "projectUrl": "", "repositoryUrl": "", "role": "Full Stack Developer", "completionDate": "2026", "featured": false },
+            { "title": "Money Tracker", "description": "A personal finance application for tracking income, expenses, and available funds.", "tags": ["Finance", "Web App"], "projectUrl": "", "repositoryUrl": "", "role": "Developer", "completionDate": "2025", "featured": false }
+          ]
+        },
+        "settings": { "spacing": "large", "contentWidth": "wide" }
+      },
+      {
+        "key": "footer",
+        "type": "footer",
+        "label": "Footer",
+        "visible": true,
+        "locked": true,
+        "content": {
+          "message": "Have a project, opportunity, or idea you would like to discuss?",
+          "copyright": "© {{year}} {{owner.fullName}}. All rights reserved."
+        },
+        "settings": { "spacing": "medium", "contentWidth": "wide" }
+      }
+    ]
+  }
+}

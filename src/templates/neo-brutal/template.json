@@ -1,0 +1,27 @@
+{
+  "id": "neo-brutal",
+  "name": "Neo-Brutalism",
+  "thumbnail": "Bold borders, offset shadows, loud calls to action",
+  "description": "High contrast, sharp blocks, expressive buttons, and structured section bands.",
+  "supportedSections": ["header", "hero", "projects", "certifications", "services", "about", "footer"],
+  "sectionVariants": { "hero": ["Text left, image right", "Centered text", "Full-width hero"], "projects": ["Feature first", "Three column grid"], "about": ["Text block", "Image and bio"] },
+  "defaultPaletteId": "black-yellow",
+  "typography": "Heavy sans display with tight utility labels",
+  "spacing": "Compact bands with emphatic gutters",
+  "borders": "3px solid borders with offset shadows",
+  "cards": "Flat surfaces with hard outlines",
+  "buttons": "Chunky rectangular buttons",
+  "imageShapes": "Squares and hard-radius portraits",
+  "structure": {
+    "settings": { "stickyHeader": true, "public": false, "breakpointWidths": { "tablet": 768, "mobile": 390 }, "bodyLayout": { "layoutMode": "stack", "stackDirection": "column", "stackAlign": "stretch", "stackJustify": "flex-start", "stackGap": 0, "layoutWrap": false } },
+    "sections": [
+      { "key": "header", "type": "header", "label": "Header", "visible": true, "locked": true, "content": { "logoText": "{{owner.fullName}}", "navigation": { "type": "div", "links": [ { "sectionType": "hero", "label": "Hero", "href": "#hero" }, { "sectionType": "projects", "label": "Projects", "href": "#projects" }, { "sectionType": "certifications", "label": "Certifications", "href": "#certifications" }, { "sectionType": "services", "label": "Services", "href": "#services" }, { "sectionType": "about", "label": "About", "href": "#about" } ] }, "contactButton": "Contact" }, "settings": { "contentWidth": "wide" } },
+      { "key": "hero", "type": "hero", "label": "Hero", "visible": true, "locked": false, "variant": "Text left, image right", "layerOrder": ["hero-content", "image:image"], "content": { "eyebrow": "Available for {{owner.professionalTitleLower}} work", "headline": "{{heroHeadline}}", "description": "{{owner.shortDescription}}", "actions": { "type": "div", "primaryCta": "View Projects", "secondaryCta": "Contact Me" }, "image": "{{owner.profileImage}}" }, "settings": { "contentWidth": "wide", "alignment": "left" } },
+      { "key": "projects", "type": "projects", "label": "Projects", "visible": true, "locked": false, "content": { "title": "Selected projects", "description": "A focused sample of recent work, roles, and outcomes.", "items": [ { "title": "Portfolio Platform", "description": "A responsive portfolio system with reusable sections and publish-ready pages.", "tags": ["React", "Design System"], "projectUrl": "", "repositoryUrl": "", "role": "Lead Developer", "completionDate": "2026", "featured": true }, { "title": "Commerce Redesign", "description": "A cleaner storefront experience with faster product discovery and stronger conversion paths.", "tags": ["Shopify", "UX"], "projectUrl": "", "repositoryUrl": "", "role": "UI Developer", "completionDate": "2025", "featured": false } ] }, "settings": { "spacing": "large", "contentWidth": "wide" } },
+      { "key": "certifications", "type": "certifications", "label": "Certifications", "visible": true, "locked": false, "content": { "title": "Certifications", "items": [ { "name": "Professional Certification", "organization": "Issuing Organization", "issueDate": "2026", "expirationDate": "", "credentialId": "ABC-123", "credentialUrl": "" } ] }, "settings": { "spacing": "medium", "contentWidth": "standard" } },
+      { "key": "services", "type": "services", "label": "Services", "visible": true, "locked": false, "content": { "title": "Services", "subtitle": "Practical ways to work together.", "items": [ { "title": "Website Build", "description": "Responsive websites with clean content structure and reliable implementation.", "startingPrice": "$1,500", "ctaText": "Start a project", "contactLink": "mailto:{{owner.email}}" }, { "title": "UI Review", "description": "A focused audit of interface hierarchy, responsive behavior, and conversion friction.", "startingPrice": "$450", "ctaText": "Book review", "contactLink": "mailto:{{owner.email}}" } ] }, "settings": { "spacing": "large", "contentWidth": "wide" } },
+      { "key": "about", "type": "about", "label": "About", "visible": true, "locked": false, "content": { "title": "About me", "description": "{{aboutDescription}}", "skills": ["Frontend", "Product Design", "Responsive UI", "Client Collaboration"], "experienceSummary": "5+ years building practical digital products.", "availability": "Open to selected projects", "resumeUrl": "" }, "settings": { "spacing": "large", "contentWidth": "standard" } },
+      { "key": "footer", "type": "footer", "label": "Footer", "visible": true, "locked": true, "content": { "message": "Let’s build something useful.", "copyright": "© {{year}} {{owner.fullName}}. All rights reserved." }, "settings": { "spacing": "medium", "contentWidth": "wide" } }
+    ]
+  }
+}

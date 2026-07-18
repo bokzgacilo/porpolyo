@@ -32,7 +32,7 @@ const sectionRowStyle = {
   alignItems: "center",
   gap: 2,
   padding: "0 16px",
-  height: "45px",
+  height: "var(--editor-section-row-height, 45px)",
   width: "100%",
   backgroundColor: "var(--chakra-colors-bg-panel)",
   borderBottom: "1px solid var(--chakra-colors-border)",

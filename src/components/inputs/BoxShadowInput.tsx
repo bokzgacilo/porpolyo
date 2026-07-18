@@ -14,6 +14,7 @@ import {
 } from "@chakra-ui/react";
 import { useEffect, useState, type ComponentType, type PropsWithChildren } from "react";
 import { LuChevronDown } from "react-icons/lu";
+import { useEditorControlSize } from "../editor/EditorSizeContext";
 
 const shadowPresets = [
   { label: "None", value: "" },
@@ -58,6 +59,7 @@ export function BoxShadowInput({
   value?: string;
   onChange: (value: string | undefined) => void;
 }) {
+  const controlSize = useEditorControlSize();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(() => parseShadow(value));
 
@@ -138,7 +140,7 @@ export function BoxShadowInput({
 
                 <Field.Root>
                   <Field.Label>Preset</Field.Label>
-                  <NativeSelect.Root size="sm">
+                  <NativeSelect.Root size={controlSize}>
                     <NativeSelect.Field
                       value={
                         shadowPresets.some((preset) => preset.value === shadow)
@@ -173,6 +175,7 @@ export function BoxShadowInput({
                   <Field.Root>
                     <Field.Label>Color</Field.Label>
                     <Input
+                      size={controlSize}
                       type="color"
                       value={draft.color}
                       onChange={(event) => update({ color: event.target.value })}
@@ -201,7 +204,13 @@ export function BoxShadowInput({
 
                 <Field.Root>
                   <Field.Label>Generated CSS</Field.Label>
-                  <Input value={shadow || "none"} readOnly fontFamily="mono" fontSize="xs" />
+                  <Input
+                    size={controlSize}
+                    value={shadow || "none"}
+                    readOnly
+                    fontFamily="mono"
+                    fontSize="xs"
+                  />
                 </Field.Root>
 
                 <HStack justify="space-between">
@@ -252,10 +261,12 @@ function ShadowNumber({
   step?: number;
   onChange: (value: number) => void;
 }) {
+  const controlSize = useEditorControlSize();
   return (
     <Field.Root>
       <Field.Label>{label}</Field.Label>
       <Input
+        size={controlSize}
         type="number"
         value={value}
         min={min}

@@ -265,6 +265,7 @@ export function App() {
   if (route === "editor" && portfolio) {
     return (
       <Editor
+        onBack={() => navigate("dashboard", "/dashboard")}
         onSave={savePortfolio}
         onPreview={() =>
           navigate("preview", `/builder/${portfolio.id}/preview`)

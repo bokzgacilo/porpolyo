@@ -1,6 +1,6 @@
 "use client";
 
-import { IconButton } from "@chakra-ui/react";
+import { IconButton, type IconButtonProps } from "@chakra-ui/react";
 import type { Driver } from "driver.js";
 import { useCallback, useEffect, useRef } from "react";
 import { LuCircleHelp } from "react-icons/lu";
@@ -11,10 +11,11 @@ const editorTourStorageKey = "porpolyo.editor-tour.v1";
 export function EditorTourButton({
   alwaysOpen,
   onBeforeStart,
+  ...buttonProps
 }: {
   alwaysOpen: boolean;
   onBeforeStart: () => void;
-}) {
+} & Omit<IconButtonProps, "aria-label" | "onClick">) {
   const driverRef = useRef<Driver>();
   const startingRef = useRef(false);
   const onBeforeStartRef = useRef(onBeforeStart);
@@ -122,6 +123,7 @@ export function EditorTourButton({
       onClick={startTour}
       variant="ghost"
       rounded={0}
+      {...buttonProps}
     >
       <LuCircleHelp size={17} />
     </IconButton>

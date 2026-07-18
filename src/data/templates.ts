@@ -1,79 +1,9 @@
-import { ColorPalette, PortfolioTemplate } from "../types/portfolio";
+import { templateDefinitions } from "../templates";
+import type { ColorPalette, PortfolioTemplate } from "../types/portfolio";
 
-export const templates: PortfolioTemplate[] = [
-  {
-    id: "blank",
-    name: "Blank Canvas",
-    thumbnail: "An empty section ready for your own layers",
-    description: "Start with one empty section and build the layout yourself using div, text, and image layers.",
-    supportedSections: ["custom", "projects", "certifications", "services", "about"],
-    sectionVariants: {},
-    defaultPaletteId: "blue-cyan",
-    typography: "Unstyled system typography",
-    spacing: "Neutral editable spacing",
-    borders: "No template borders",
-    cards: "No predefined cards",
-    buttons: "No predefined buttons",
-    imageShapes: "No predefined image shape"
-  },
-  {
-    id: "neo-brutal",
-    name: "Neo-Brutalism",
-    thumbnail: "Bold borders, offset shadows, loud calls to action",
-    description: "High contrast, sharp blocks, expressive buttons, and structured section bands.",
-    supportedSections: ["header", "hero", "projects", "certifications", "services", "about", "footer"],
-    sectionVariants: {
-      hero: ["Text left, image right", "Centered text", "Full-width hero"],
-      projects: ["Feature first", "Three column grid"],
-      about: ["Text block", "Image and bio"]
-    },
-    defaultPaletteId: "black-yellow",
-    typography: "Heavy sans display with tight utility labels",
-    spacing: "Compact bands with emphatic gutters",
-    borders: "3px solid borders with offset shadows",
-    cards: "Flat surfaces with hard outlines",
-    buttons: "Chunky rectangular buttons",
-    imageShapes: "Squares and hard-radius portraits"
-  },
-  {
-    id: "minimalist",
-    name: "Minimalist",
-    thumbnail: "Quiet typography, airy spacing, subtle dividers",
-    description: "Refined whitespace, small accents, and editorial rhythm for professionals.",
-    supportedSections: ["header", "hero", "projects", "certifications", "services", "about", "footer"],
-    sectionVariants: {
-      hero: ["Text left, image right", "Centered text", "Image left, text right"],
-      projects: ["Editorial list", "Clean grid"],
-      about: ["Narrow essay", "Split profile"]
-    },
-    defaultPaletteId: "blue-cyan",
-    typography: "Modern sans with generous line height",
-    spacing: "Large whitespace and narrow text measures",
-    borders: "Hairline dividers",
-    cards: "Low-contrast surfaces",
-    buttons: "Slim rounded buttons",
-    imageShapes: "Soft rounded rectangles"
-  },
-  {
-    id: "bento",
-    name: "Bento Grid",
-    thumbnail: "Modular panels, dense highlights, flexible visual blocks",
-    description: "A structured panel system for showing projects, services, and proof quickly.",
-    supportedSections: ["header", "hero", "projects", "certifications", "services", "about", "footer"],
-    sectionVariants: {
-      hero: ["Bento-style hero", "Centered text", "Text left, image right"],
-      projects: ["Bento feature grid", "Compact cards"],
-      about: ["Stats and bio", "Profile panel"]
-    },
-    defaultPaletteId: "electric-blue",
-    typography: "Crisp product sans with strong labels",
-    spacing: "Dense modular gaps",
-    borders: "Subtle radius with clear panel boundaries",
-    cards: "Responsive bento cells",
-    buttons: "Pill and icon-led actions",
-    imageShapes: "Rounded cards and circles"
-  }
-];
+export const templates: PortfolioTemplate[] = templateDefinitions.map(
+  ({ structure: _structure, ...metadata }) => metadata,
+);
 
 export const palettes: ColorPalette[] = [
   { id: "black-yellow", name: "Black, White, Yellow", primary: "#111111", secondary: "#ffffff", accent: "#ffd43b", background: "#f7f3e8", surface: "#ffffff", text: "#111111", muted: "#555555", border: "#111111" },
@@ -85,5 +15,6 @@ export const palettes: ColorPalette[] = [
   { id: "charcoal-lime", name: "Charcoal, Gray, Lime", primary: "#202124", secondary: "#f3f4f6", accent: "#a3e635", background: "#f5f6f2", surface: "#ffffff", text: "#202124", muted: "#62656a", border: "#d4d4d8" },
   { id: "burgundy-peach", name: "Burgundy, Peach, Cream", primary: "#7f1d1d", secondary: "#fff1e6", accent: "#fb7185", background: "#fff8f1", surface: "#fffdf8", text: "#3b1717", muted: "#8a6767", border: "#f0c9bd" },
   { id: "dark-lavender", name: "Dark Blue, Lavender, White", primary: "#172554", secondary: "#ffffff", accent: "#a78bfa", background: "#f8f7ff", surface: "#ffffff", text: "#111827", muted: "#667085", border: "#dcd7fb" },
-  { id: "electric-blue", name: "Black, Off-White, Electric Blue", primary: "#050505", secondary: "#f5f2e8", accent: "#2563ff", background: "#f5f2e8", surface: "#ffffff", text: "#050505", muted: "#5b5b5b", border: "#191919" }
+  { id: "electric-blue", name: "Black, Off-White, Electric Blue", primary: "#050505", secondary: "#f5f2e8", accent: "#2563ff", background: "#f5f2e8", surface: "#ffffff", text: "#050505", muted: "#5b5b5b", border: "#191919" },
+  { id: "mono-ink", name: "Black, White, Gray", primary: "#111111", secondary: "#ffffff", accent: "#111111", background: "#ffffff", surface: "#f5f5f5", text: "#1a1a1a", muted: "#666666", border: "#dddddd" }
 ];

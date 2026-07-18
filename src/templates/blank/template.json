@@ -1,0 +1,50 @@
+{
+  "id": "blank",
+  "name": "Blank Canvas",
+  "thumbnail": "An empty section ready for your own layers",
+  "description": "Start with one empty section and build the layout yourself using div, text, and image layers.",
+  "supportedSections": ["custom", "projects", "certifications", "services", "about"],
+  "sectionVariants": {},
+  "defaultPaletteId": "blue-cyan",
+  "typography": "Unstyled system typography",
+  "spacing": "Neutral editable spacing",
+  "borders": "No template borders",
+  "cards": "No predefined cards",
+  "buttons": "No predefined buttons",
+  "imageShapes": "No predefined image shape",
+  "structure": {
+    "settings": {
+      "stickyHeader": false,
+      "public": false,
+      "breakpointWidths": { "tablet": 768, "mobile": 390 },
+      "bodyLayout": {
+        "layoutMode": "stack",
+        "stackDirection": "column",
+        "stackAlign": "stretch",
+        "stackJustify": "flex-start",
+        "stackGap": 0,
+        "layoutWrap": false
+      }
+    },
+    "sections": [
+      {
+        "key": "blank",
+        "type": "custom",
+        "label": "Blank section",
+        "visible": true,
+        "locked": false,
+        "content": {},
+        "settings": {
+          "layoutMode": "stack",
+          "stackDirection": "column",
+          "stackAlign": "stretch",
+          "stackJustify": "flex-start",
+          "stackGap": 16,
+          "layoutWrap": false,
+          "spacing": "large",
+          "contentWidth": "wide"
+        }
+      }
+    ]
+  }
+}

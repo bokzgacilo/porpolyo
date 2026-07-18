@@ -19,13 +19,38 @@ export function selectedElementKey(selected: SelectedElement) {
 
 export function getElementSettings(section: PortfolioSection, selectedOrKey: SelectedElement | string) {
   const key = typeof selectedOrKey === "string" ? selectedOrKey : selectedElementKey(selectedOrKey);
+  const contentField = contentFieldFromElementKey(key, section);
+  if (contentField && section.content[contentField]) {
+    return section.content[contentField].style || emptyElementSettings;
+  }
   return section.elements?.[key] || emptyElementSettings;
+}
+
+export function contentFieldFromElementKey(
+  key: string,
+  section?: PortfolioSection,
+) {
+  if (key.startsWith("text:")) return key.slice("text:".length);
+  if (key.startsWith("image:")) return key.slice("image:".length);
+  const layerAliases: Record<string, string> = {
+    "layer:navigation": "navigation",
+    "layer:hero-actions": "actions",
+    "layer:skills": "skills",
+    "layer:project-grid": "items",
+    "layer:certification-list": "items",
+    "layer:service-cards": "items",
+  };
+  const alias = layerAliases[key];
+  if (alias && (!section || section.content[alias])) return alias;
+  return undefined;
 }
 
 export function toElementStyle(settings: ElementSettings | undefined): CSSProperties {
   if (!settings) return emptyElementStyle;
   const cached = elementStyleCache.get(settings);
   if (cached) return cached;
+  const borderWidths = settings.borderWidths;
+  const borderRadii = settings.borderRadii;
   const style: CSSProperties = {
     color: settings.color,
     backgroundColor: settings.backgroundColor,
@@ -65,9 +90,17 @@ export function toElementStyle(settings: ElementSettings | undefined): CSSProper
     flexDirection:
       settings.layoutMode === "stack" ? settings.stackDirection : undefined,
     alignItems:
-      settings.layoutMode === "stack" ? settings.stackAlign : undefined,
+      settings.layoutMode === "grid"
+        ? settings.gridAlignItems
+        : settings.layoutMode === "stack"
+          ? settings.stackAlign
+          : undefined,
     justifyContent:
-      settings.layoutMode === "stack" ? settings.stackJustify : undefined,
+      settings.layoutMode === "grid"
+        ? settings.gridJustifyContent
+        : settings.layoutMode === "stack"
+          ? settings.stackJustify
+          : undefined,
     gap:
       settings.layoutMode === "stack"
         ? `${settings.stackGap || 0}px`
@@ -86,13 +119,50 @@ export function toElementStyle(settings: ElementSettings | undefined): CSSProper
     paddingRight: spacingValue(settings.padding?.right, settings.padding?.unit),
     paddingBottom: spacingValue(settings.padding?.bottom, settings.padding?.unit),
     paddingLeft: spacingValue(settings.padding?.left, settings.padding?.unit),
-    borderWidth: settings.borderWidth !== undefined ? `${settings.borderWidth}px` : undefined,
+    borderWidth:
+      !borderWidths && settings.borderWidth !== undefined
+        ? `${settings.borderWidth}px`
+        : undefined,
+    borderTopWidth: borderWidths
+      ? spacingValue(borderWidths.top ?? settings.borderWidth, borderWidths.unit)
+      : undefined,
+    borderRightWidth: borderWidths
+      ? spacingValue(borderWidths.right ?? settings.borderWidth, borderWidths.unit)
+      : undefined,
+    borderBottomWidth: borderWidths
+      ? spacingValue(borderWidths.bottom ?? settings.borderWidth, borderWidths.unit)
+      : undefined,
+    borderLeftWidth: borderWidths
+      ? spacingValue(borderWidths.left ?? settings.borderWidth, borderWidths.unit)
+      : undefined,
     borderStyle: settings.borderStyle,
     borderColor: settings.borderColor,
-    borderRadius: settings.borderRadius !== undefined ? `${settings.borderRadius}px` : undefined,
+    borderRadius:
+      !borderRadii && settings.borderRadius !== undefined
+        ? `${settings.borderRadius}px`
+        : undefined,
+    borderTopLeftRadius: borderRadii
+      ? spacingValue(borderRadii.topLeft ?? settings.borderRadius, borderRadii.unit)
+      : undefined,
+    borderTopRightRadius: borderRadii
+      ? spacingValue(borderRadii.topRight ?? settings.borderRadius, borderRadii.unit)
+      : undefined,
+    borderBottomRightRadius: borderRadii
+      ? spacingValue(
+          borderRadii.bottomRight ?? settings.borderRadius,
+          borderRadii.unit,
+        )
+      : undefined,
+    borderBottomLeftRadius: borderRadii
+      ? spacingValue(
+          borderRadii.bottomLeft ?? settings.borderRadius,
+          borderRadii.unit,
+        )
+      : undefined,
     boxShadow: settings.boxShadow,
     width: sizeValue(settings.width),
     height: sizeValue(settings.height),
+    order: settings.order,
     maxWidth: settings.width ? "none" : undefined,
     gridColumn: settings.spanSection ? "1 / -1" : undefined,
     justifySelf: settings.spanSection ? "stretch" : undefined
@@ -113,6 +183,8 @@ function typographyValue(
 }
 
 function sizeValue(size?: ElementSettings["width"]) {
-  if (!size || size.value === undefined) return undefined;
+  if (!size) return undefined;
+  if (size.unit === "fill") return "100%";
+  if (size.value === undefined) return undefined;
   return `${size.value}${size.unit}`;
 }

@@ -8,6 +8,9 @@ import { Analytics } from "@vercel/analytics/next";
 export const metadata: Metadata = {
   title: "Porpolyo",
   description: "Build and publish a polished portfolio.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({

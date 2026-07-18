@@ -3,23 +3,30 @@ import { Box } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useEditorStore } from "../store/editorStore";
-import { SelectedElement } from "../types/portfolio";
+import { CustomLayerType, SelectedElement } from "../types/portfolio";
 import { findCustomLayer } from "../utils/customLayers";
 import { selectedElementKey } from "../utils/elementSettings";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { CanvasStage } from "./editor/CanvasStage";
 import { EditorToolbar } from "./editor/EditorToolbar";
+import { EditorControlSizeProvider } from "./editor/EditorSizeContext";
+import { EditorStatusBar } from "./editor/EditorStatusBar";
 import { HeadMetadataEditor } from "./editor/HeadMetadataEditor";
 import { StructurePanel } from "./editor/StructurePanel";
-import { isNativeContainerLayerId } from "./editor/layerHelpers";
+import {
+  isNativeContainerLayerId,
+  nativeContainerLayerIdFromSelection,
+} from "./editor/layerHelpers";
 
 export function Editor({
+  onBack,
   onSave,
   onPreview,
   onSettings,
   onPublish,
 }: {
-  onSave: () => void;
+  onBack: () => void;
+  onSave: () => void | Promise<void>;
   onPreview: () => void;
   onSettings: () => void;
   onPublish: () => void;
@@ -52,6 +59,8 @@ export function Editor({
     deleteCollectionItem,
     duplicateCollectionItem,
     reorderCollectionItems,
+    reorderTemplateLayers,
+    moveTemplateLayerToContainer,
     addCustomLayer,
     deleteCustomLayer,
     duplicateCustomLayer,
@@ -62,6 +71,7 @@ export function Editor({
     restoreHistory,
     select,
     updateElementSettings,
+    updatePortfolioSettings,
   } = useEditorStore(
     useShallow((state) => ({
       setPreviewMode: state.setPreviewMode,
@@ -74,6 +84,8 @@ export function Editor({
       deleteCollectionItem: state.deleteCollectionItem,
       duplicateCollectionItem: state.duplicateCollectionItem,
       reorderCollectionItems: state.reorderCollectionItems,
+      reorderTemplateLayers: state.reorderTemplateLayers,
+      moveTemplateLayerToContainer: state.moveTemplateLayerToContainer,
       addCustomLayer: state.addCustomLayer,
       deleteCustomLayer: state.deleteCustomLayer,
       duplicateCustomLayer: state.duplicateCustomLayer,
@@ -84,6 +96,7 @@ export function Editor({
       restoreHistory: state.restoreHistory,
       select: state.select,
       updateElementSettings: state.updateElementSettings,
+      updatePortfolioSettings: state.updatePortfolioSettings,
     })),
   );
   const [expandedLayers, setExpandedLayers] = useState<Record<string, boolean>>(
@@ -93,16 +106,21 @@ export function Editor({
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
   const [spacePressed, setSpacePressed] = useState(false);
   const [canvasTrackWidth, setCanvasTrackWidth] = useState(900);
+  const [canvasZoom, setCanvasZoom] = useState(1);
+  const [resetCanvasSignal, setResetCanvasSignal] = useState(0);
 
   const editorSettings = portfolio?.settings.editor || {};
+  const panelSize = editorSettings.panelSize ?? "default";
+  const panelSizeOffset =
+    panelSize === "small" ? -1 : panelSize === "large" ? 1 : 0;
   const propertiesPanelMinWidth = editorSettings.propertiesPanelMinWidth ?? 280;
   const propertiesPanelMaxWidth = editorSettings.propertiesPanelMaxWidth ?? 520;
   const propertiesPanelWidth = clamp(
-    editorSettings.propertiesPanelWidth ?? 340,
+    (editorSettings.propertiesPanelWidth ?? 340) + panelSizeOffset * 40,
     propertiesPanelMinWidth,
     propertiesPanelMaxWidth,
   );
-  const leftPanelWidth = leftPanelCollapsed ? 48 : 280;
+  const leftPanelWidth = leftPanelCollapsed ? 48 : 280 + panelSizeOffset * 32;
 
   useEffect(() => {
     const updateCanvasTrackWidth = () => {
@@ -248,15 +266,121 @@ export function Editor({
     [portfolio?.sections],
   );
   const movable = useMemo(
-    () => sections.filter((section) => !section.locked),
+    () =>
+      sections.filter(
+        (section) => !section.locked && !section.parentSectionId,
+      ),
     [sections],
   );
   const selectedSectionId =
-    selected && "sectionId" in selected ? selected.sectionId : sections[0]?.id;
+    selected && "sectionId" in selected
+      ? selected.sectionId
+      : sections.find((section) => !section.parentSectionId)?.id;
   const selectedSection = useMemo(
     () =>
       sections.find((section) => section.id === selectedSectionId) || sections[0],
     [sections, selectedSectionId],
+  );
+  const selectedCustomLayerId =
+    selected?.kind === "layer" && selected.layerId.startsWith("custom:")
+      ? selected.layerId.slice("custom:".length)
+      : undefined;
+  const selectedCustomLayer = selectedSection
+    ? findCustomLayer(selectedSection.customLayers, selectedCustomLayerId || "")
+    : undefined;
+  const customLayerParentId =
+    selectedCustomLayer?.type === "div" ? selectedCustomLayer.id : undefined;
+  const templateLayerParentId = nativeContainerLayerIdFromSelection(selected);
+  const insertionParentId = customLayerParentId || templateLayerParentId;
+  const sectionInsertionParentId = customLayerParentId
+    ? `custom:${customLayerParentId}`
+    : templateLayerParentId;
+  const canInsertIntoSelection =
+    selected?.kind === "section" ||
+    !!customLayerParentId ||
+    !!templateLayerParentId;
+  const insertionParentLabel =
+    selected?.kind === "section"
+      ? `${selectedSection?.label || "Selected"} section`
+      : selectedCustomLayer?.name ||
+        (selected?.kind === "layer" ? selected.label : undefined) ||
+        (selected && "itemId" in selected
+          ? `selected ${selected.kind}`
+          : undefined);
+
+  const addLayer = useCallback(
+    (type: CustomLayerType) => {
+      if (!selectedSection || !canInsertIntoSelection) return;
+      const id = crypto.randomUUID();
+      addCustomLayer(
+        selectedSection.id,
+        {
+          id,
+          type,
+          name:
+            type === "div"
+              ? "New div"
+              : type === "text"
+                ? "New text"
+                : "New image",
+          text: type === "text" ? "New text layer" : undefined,
+          children: type === "div" ? [] : undefined,
+        },
+        insertionParentId,
+      );
+      if (insertionParentId) {
+        setExpandedLayers((current) => ({
+          ...current,
+          [isNativeContainerLayerId(insertionParentId)
+            ? /^(project|certification|service):/.test(insertionParentId)
+              ? insertionParentId.slice(insertionParentId.indexOf(":") + 1)
+              : `${selectedSection.id}-${insertionParentId}`
+            : `custom:${insertionParentId}`]: true,
+        }));
+      }
+      select({
+        kind: "layer",
+        sectionId: selectedSection.id,
+        layerId: `custom:${id}`,
+        label:
+          type === "div"
+            ? "New div"
+            : type === "text"
+              ? "New text"
+              : "New image",
+      });
+    }, [
+      addCustomLayer,
+      canInsertIntoSelection,
+      insertionParentId,
+      select,
+      selectedSection,
+    ]);
+
+  const addSectionAtSelection = useCallback(
+    (
+      type: "custom" | "projects" | "certifications" | "services" | "about",
+    ) => {
+      const id = crypto.randomUUID();
+      if (selected?.kind === "body") {
+        addSection(type, { id });
+      } else {
+        if (!selectedSection || !canInsertIntoSelection) return;
+        addSection(type, {
+          id,
+          parentSectionId: selectedSection.id,
+          parentLayerId: sectionInsertionParentId,
+        });
+      }
+      select({ kind: "section", sectionId: id });
+    }, [
+      addSection,
+      canInsertIntoSelection,
+      sectionInsertionParentId,
+      select,
+      selected?.kind,
+      selectedSection,
+    ],
   );
 
   const onDragEnd = useCallback((event: DragEndEvent) => {
@@ -323,8 +447,11 @@ export function Editor({
   if (!portfolio) return null;
 
   return (
-    <Box
+    <EditorControlSizeProvider panelSize={panelSize}>
+      <Box
       as="main"
+      className="editor-shell"
+      data-editor-size={panelSize}
       bg="bg.subtle"
       color="fg.default"
       display="flex"
@@ -338,9 +465,6 @@ export function Editor({
         onUndo={undo}
         onRedo={redo}
         onSave={onSave}
-        onSettings={onSettings}
-        onStartTour={() => setLeftPanelCollapsed(false)}
-        alwaysOpenTour={editorSettings.alwaysOpenTour ?? false}
         onPreview={onPreview}
         onPublish={onPublish}
       />
@@ -354,6 +478,7 @@ export function Editor({
         overflow="hidden"
       >
         <Box
+          className="editor-panel"
           data-tour="structure-panel"
           flex={`0 0 ${leftPanelWidth}px`}
           minW={`${leftPanelWidth}px`}
@@ -374,43 +499,7 @@ export function Editor({
             onDeleteSection={deleteSelectedSection}
             onRenameSection={renameSection}
             onToggleSectionLock={toggleSectionLock}
-            onAddSection={addSection}
             onAddCollectionItem={addCollectionItem}
-            onAddCustomLayer={(sectionId, type, parentId) => {
-              const id = crypto.randomUUID();
-              addCustomLayer(
-                sectionId,
-                {
-                  id,
-                  type,
-                  name:
-                    type === "div"
-                      ? "New div"
-                      : type === "text"
-                        ? "New text"
-                        : "New image",
-                  text: type === "text" ? "New text layer" : undefined,
-                  children: type === "div" ? [] : undefined,
-                },
-                parentId,
-              );
-              if (parentId) {
-                setExpandedLayers((current) => ({
-                  ...current,
-                  [isNativeContainerLayerId(parentId)
-                    ? /^(project|certification|service):/.test(parentId)
-                      ? parentId.slice(parentId.indexOf(":") + 1)
-                      : `${sectionId}-${parentId}`
-                    : `custom:${parentId}`]: true,
-                }));
-              }
-              select({
-                kind: "layer",
-                sectionId,
-                layerId: `custom:${id}`,
-                label: type === "div" ? "New div" : type === "text" ? "New text" : "New image",
-              });
-            }}
             onDeleteCollectionItem={deleteCollectionItem}
             onDeleteCustomLayer={deleteCustomLayer}
             onExpandedLayersChange={(layerIds) => {
@@ -419,12 +508,11 @@ export function Editor({
               );
             }}
             onReorderCollectionItems={reorderCollectionItems}
+            onReorderTemplateLayers={reorderTemplateLayers}
+            onMoveTemplateLayerToContainer={moveTemplateLayerToContainer}
             onReorderCustomLayers={reorderCustomLayers}
             onMoveCustomLayerToContainer={moveCustomLayerToContainer}
             onSelect={selectAndScroll}
-            history={history}
-            currentHistoryLabel={currentHistoryLabel}
-            onRestoreHistory={restoreHistory}
             collapsed={leftPanelCollapsed}
             onCollapsedChange={setLeftPanelCollapsed}
           />
@@ -447,19 +535,59 @@ export function Editor({
                   selected={selected}
                   previewMode={previewMode}
                   panReady={spacePressed}
-                  onPreviewModeChange={setPreviewMode}
                   onSelect={select}
+                  panelSize={panelSize}
+                  zoom={canvasZoom}
+                  resetCanvasSignal={resetCanvasSignal}
+                  onZoomChange={setCanvasZoom}
+                  canInsertIntoSelection={canInsertIntoSelection}
+                  canAddSection={
+                    selected?.kind === "body" || canInsertIntoSelection
+                  }
+                  addingTopLevelSection={selected?.kind === "body"}
+                  insertionParentLabel={insertionParentLabel}
+                  onAddSection={addSectionAtSelection}
+                  onAddLayer={addLayer}
                 />
               )}
             </Box>
 
-            <Box data-tour="properties-panel" minW="0" h="full" overflow="hidden">
+            <Box
+              className="editor-panel"
+              data-tour="properties-panel"
+              minW="0"
+              h="full"
+              overflow="hidden"
+            >
               <PropertiesPanel />
             </Box>
           </Box>
         </Box>
       </Box>
-    </Box>
+      <EditorStatusBar
+        portfolio={portfolio}
+        selected={selected}
+        alwaysOpenTour={editorSettings.alwaysOpenTour ?? false}
+        panelSize={panelSize}
+        previewMode={previewMode}
+        zoom={canvasZoom}
+        history={history}
+        currentHistoryLabel={currentHistoryLabel}
+        onBack={onBack}
+        onSettings={onSettings}
+        onStartTour={() => setLeftPanelCollapsed(false)}
+        onPanelSizeChange={(panelSize) =>
+          updatePortfolioSettings({
+            editor: { ...editorSettings, panelSize },
+          })
+        }
+        onPreviewModeChange={setPreviewMode}
+        onZoomChange={setCanvasZoom}
+        onResetCanvas={() => setResetCanvasSignal((signal) => signal + 1)}
+        onRestoreHistory={restoreHistory}
+      />
+      </Box>
+    </EditorControlSizeProvider>
   );
 }
 

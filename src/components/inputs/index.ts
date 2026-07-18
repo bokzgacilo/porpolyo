@@ -1,7 +1,9 @@
 export { BoxShadowInput } from "./BoxShadowInput";
+export { BorderRadiusInput, BorderWidthInput } from "./BorderInputs";
 export { ColorInput, normalizeColor } from "./ColorInput";
 export { FontFamilyPicker } from "./FontFamilyPicker";
 export { InputField } from "./InputField";
+export { ImageUploadDropzone } from "./ImageUploadDropzone";
 export { NumberInput } from "./NumberInput";
 export { SizeInput } from "./SizeInput";
 export { TextAreaInput } from "./TextAreaInput";

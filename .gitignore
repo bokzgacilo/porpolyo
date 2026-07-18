@@ -92,3 +92,5 @@ Desktop.ini
 
 # Audit reports (local only)
 /audits/
+.vercel
+.env*

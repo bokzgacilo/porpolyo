@@ -3,32 +3,39 @@ import {
   Box,
   HStack,
   IconButton,
-  NativeSelect,
+  Menu,
   Portal,
-  Text,
 } from "@chakra-ui/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type React from "react";
-import { LuShare, LuSquareDot, LuTrash } from "react-icons/lu";
-import { Portfolio, PreviewMode, SelectedElement } from "../../types/portfolio";
+import {
+  LuImagePlus,
+  LuLayers,
+  LuPanelTop,
+  LuPlus,
+  LuSquareDashed,
+  LuType,
+} from "react-icons/lu";
+import {
+  CustomLayerType,
+  EditorPanelSize,
+  Portfolio,
+  PreviewMode,
+  SelectedElement,
+} from "../../types/portfolio";
 import { breakpointWidth } from "../../config/breakpointSettings";
 import { selectedElementKey } from "../../utils/elementSettings";
+import { createAnimationFrameScheduler } from "../../utils/animationFrameScheduler";
 import { PortfolioPreview } from "../PortfolioPreview";
-import { selectedLabel } from "./layerHelpers";
+import { findSelectedTarget } from "./editorSelectors";
 
 const ActionBarContent =
-  ActionBar.Content as React.ComponentType<React.PropsWithChildren>;
-const zoomOptions = [
-  { label: "10%", value: 0.1 },
-  { label: "20%", value: 0.2 },
-  { label: "50%", value: 0.5 },
-  { label: "75%", value: 0.75 },
-  { label: "100%", value: 1 },
-  { label: "125%", value: 1.25 },
-  { label: "150%", value: 1.5 },
-  { label: "200%", value: 2 },
-];
-
+  ActionBar.Content as React.ComponentType<
+    React.PropsWithChildren & {
+      className?: string;
+      "data-editor-size"?: EditorPanelSize;
+    }
+  >;
 type OverlayRect = { x: number; y: number; width: number; height: number };
 type BoxModelRects = {
   margin: OverlayRect;
@@ -41,15 +48,35 @@ export function CanvasStage({
   selected,
   previewMode,
   panReady,
-  onPreviewModeChange,
   onSelect,
+  panelSize,
+  zoom,
+  resetCanvasSignal,
+  canInsertIntoSelection,
+  canAddSection,
+  addingTopLevelSection,
+  insertionParentLabel,
+  onZoomChange,
+  onAddSection,
+  onAddLayer,
 }: {
   portfolio: Portfolio;
   selected?: SelectedElement;
   previewMode: PreviewMode;
   panReady: boolean;
-  onPreviewModeChange: (mode: PreviewMode) => void;
   onSelect: (selection?: SelectedElement) => void;
+  panelSize: EditorPanelSize;
+  zoom: number;
+  resetCanvasSignal: number;
+  canInsertIntoSelection: boolean;
+  canAddSection: boolean;
+  addingTopLevelSection: boolean;
+  insertionParentLabel?: string;
+  onZoomChange: (zoom: number) => void;
+  onAddSection: (
+    type: "custom" | "projects" | "certifications" | "services" | "about",
+  ) => void;
+  onAddLayer: (type: CustomLayerType) => void;
 }) {
   const stageRef = useRef<HTMLElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -58,26 +85,12 @@ export function CanvasStage({
     | { pointerId: number; x: number; y: number; panX: number; panY: number }
     | undefined
   >();
-  const zoomRef = useRef(1);
-  const [zoom, setZoom] = useState(1);
-  const [htmlSelector, setHtmlSelector] = useState("—");
-  const selectedDomIdentity = selected
-    ? "sectionId" in selected
-      ? `${selected.sectionId}:${selectedElementKey(selected)}`
-      : selected.kind
-    : "none";
+  const zoomRef = useRef(zoom);
+  const previousResetSignal = useRef(resetCanvasSignal);
+  const showStructureOverlay =
+    portfolio.settings.editor?.showStructureOverlay ?? true;
   const showBoxModelOverlay =
     portfolio.settings.editor?.showBoxModelOverlay ?? true;
-
-  useLayoutEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      setHtmlSelector(
-        resolveHtmlSelector(viewportRef.current, selected, portfolio.sections),
-      );
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [previewMode, selectedDomIdentity]);
 
   const applyViewportTransform = () => {
     const viewport = viewportRef.current;
@@ -88,10 +101,16 @@ export function CanvasStage({
   };
 
   const updateZoom = (nextZoom: number) => {
-    zoomRef.current = nextZoom;
+    const clampedZoom = Math.min(Math.max(nextZoom, 0.1), 2);
+    zoomRef.current = clampedZoom;
     applyViewportTransform();
-    setZoom(nextZoom);
+    onZoomChange(clampedZoom);
   };
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+    applyViewportTransform();
+  }, [zoom]);
 
   useEffect(() => {
     const onZoomShortcut = (event: KeyboardEvent) => {
@@ -119,7 +138,29 @@ export function CanvasStage({
 
     window.addEventListener("keydown", onZoomShortcut);
     return () => window.removeEventListener("keydown", onZoomShortcut);
-  }, []);
+  }, [onZoomChange]);
+
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+
+    const zoomWithWheel = (event: WheelEvent) => {
+      if (!(event.ctrlKey || event.metaKey || event.altKey)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const factor = Math.exp(-event.deltaY * 0.002);
+      const nextZoom = Math.min(
+        Math.max(zoomRef.current * factor, 0.1),
+        2,
+      );
+      zoomRef.current = Number(nextZoom.toFixed(2));
+      applyViewportTransform();
+      onZoomChange(zoomRef.current);
+    };
+
+    stage.addEventListener("wheel", zoomWithWheel, { passive: false });
+    return () => stage.removeEventListener("wheel", zoomWithWheel);
+  }, [onZoomChange]);
 
   const startPan = (event: React.PointerEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
@@ -192,9 +233,11 @@ export function CanvasStage({
     });
   };
 
-  const selectedZoom = zoomOptions.find(
-    (option) => Math.abs(zoom - option.value) < 0.005,
-  )?.value;
+  useEffect(() => {
+    if (previousResetSignal.current === resetCanvasSignal) return;
+    previousResetSignal.current = resetCanvasSignal;
+    resetToCenter();
+  }, [resetCanvasSignal]);
 
   return (
     <Box
@@ -220,81 +263,89 @@ export function CanvasStage({
       <ActionBar.Root open={true}>
         <Portal>
           <ActionBar.Positioner zIndex="popover">
-            <ActionBarContent>
-              <Text fontSize="xs">
-                {selectedLabel(selected, portfolio.sections)}
-              </Text>
-              <ActionBar.Separator />
-              <Text
-                as="code"
-                maxW="210px"
-                rounded="sm"
-                bg="bg.subtle"
-                color="fg.muted"
-                fontFamily="mono"
-                fontSize="xs"
-                whiteSpace="nowrap"
-                truncate
-                title={htmlSelector}
-                aria-label={`Selected HTML selector: ${htmlSelector}`}
-              >
-                {htmlSelector}
-              </Text>
-              <ActionBar.Separator />
-              <HStack gap="2" data-canvas-control="true">
-                <NativeSelect.Root size="xs" width="128px">
-                  <NativeSelect.Field
-                    aria-label="Preview breakpoint"
-                    value={previewMode}
-                    onChange={(event) =>
-                      onPreviewModeChange(event.target.value as PreviewMode)
-                    }
-                  >
-                    <option value="desktop">Desktop</option>
-                    <option value="tablet">Tablet</option>
-                    <option value="mobile">Mobile</option>
-                  </NativeSelect.Field>
-                  <NativeSelect.Indicator />
-                </NativeSelect.Root>
-                <NativeSelect.Root size="xs" width="128px">
-                  <NativeSelect.Field
-                    aria-label="Canvas zoom"
-                    value={
-                      selectedZoom !== undefined
-                        ? String(selectedZoom)
-                        : "custom"
-                    }
-                    onChange={(event) => {
-                      if (event.target.value === "fit") {
-                        resetToCenter();
-                        return;
+            <ActionBarContent
+              className="editor-action-bar"
+              data-editor-size={panelSize}
+            >
+              <HStack gap="1" data-canvas-control="true">
+                <Menu.Root>
+                  <Menu.Trigger asChild>
+                    <IconButton
+                      aria-label={
+                        addingTopLevelSection
+                          ? "Add top-level section"
+                          : "Add section inside selected element"
                       }
-                      if (event.target.value !== "custom") {
-                        updateZoom(Number(event.target.value));
+                      title={
+                        addingTopLevelSection
+                          ? "Add a top-level page section"
+                          : canAddSection
+                            ? `Add section inside ${insertionParentLabel || "selected element"}`
+                            : "Select Body, a section, or a container to add a section"
                       }
-                    }}
-                  >
-                    {selectedZoom === undefined && (
-                      <option value="custom">{Math.round(zoom * 100)}%</option>
-                    )}
-                    {zoomOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                    <option value="fit">Fit whole page</option>
-                  </NativeSelect.Field>
-                  <NativeSelect.Indicator />
-                </NativeSelect.Root>
-                <IconButton
-                  aria-label="Center canvas and zoom to fit"
-                  title="Center canvas and zoom to fit"
-                  onClick={resetToCenter}
-                  size="xs"
-                  variant="outline"
-                >
-                  <LuSquareDot />
-                </IconButton>
+                      disabled={!canAddSection}
+                      size="xs"
+                      variant="outline"
+                    >
+                      <LuPanelTop />
+                    </IconButton>
+                  </Menu.Trigger>
+                  <Portal>
+                    <Menu.Positioner data-canvas-control="true">
+                      <Menu.Content>
+                        {(
+                          [
+                            ["custom", "Blank section"],
+                            ["projects", "Projects"],
+                            ["certifications", "Certifications"],
+                            ["services", "Services"],
+                            ["about", "About"],
+                          ] as const
+                        ).map(([type, label]) => (
+                          <Menu.Item
+                            key={type}
+                            value={type}
+                            onSelect={() => onAddSection(type)}
+                          >
+                            <LuPlus /> {label}
+                          </Menu.Item>
+                        ))}
+                      </Menu.Content>
+                    </Menu.Positioner>
+                  </Portal>
+                </Menu.Root>
+                <Menu.Root>
+                  <Menu.Trigger asChild>
+                    <IconButton
+                      aria-label="Add layer inside selected element"
+                      title={
+                        canInsertIntoSelection
+                          ? `Add layer inside ${insertionParentLabel || "selected element"}`
+                          : "Select a section or container to add a layer"
+                      }
+                      disabled={!canInsertIntoSelection}
+                      size="xs"
+                      variant="outline"
+                    >
+                      <LuLayers />
+                    </IconButton>
+                  </Menu.Trigger>
+                  <Portal>
+                    <Menu.Positioner data-canvas-control="true">
+                      <Menu.Content>
+                        <Menu.Item value="div" onSelect={() => onAddLayer("div")}>
+                          <LuSquareDashed /> Div container
+                        </Menu.Item>
+                        <Menu.Item value="text" onSelect={() => onAddLayer("text")}>
+                          <LuType /> Text
+                        </Menu.Item>
+                        <Menu.Item value="image" onSelect={() => onAddLayer("image")}>
+                          <LuImagePlus /> Image
+                        </Menu.Item>
+                      </Menu.Content>
+                    </Menu.Positioner>
+                  </Portal>
+                </Menu.Root>
               </HStack>
             </ActionBarContent>
           </ActionBar.Positioner>
@@ -303,12 +354,14 @@ export function CanvasStage({
       <Box
         ref={viewportRef}
         className="canvas-viewport"
+        data-show-structure-overlay={showStructureOverlay}
       >
         <BoxModelOverlay
           selected={selected}
           viewportRef={viewportRef}
           zoom={zoom}
           previewMode={previewMode}
+          showStructure={showStructureOverlay}
           showBoxModel={showBoxModelOverlay}
         />
         <PortfolioPreview
@@ -327,12 +380,14 @@ function BoxModelOverlay({
   viewportRef,
   zoom,
   previewMode,
+  showStructure,
   showBoxModel,
 }: {
   selected?: SelectedElement;
   viewportRef: React.RefObject<HTMLDivElement | null>;
   zoom: number;
   previewMode: PreviewMode;
+  showStructure: boolean;
   showBoxModel: boolean;
 }) {
   const [rects, setRects] = useState<BoxModelRects>();
@@ -345,7 +400,13 @@ function BoxModelOverlay({
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current;
-    if (!viewport || !selected || !sectionId || !selectionKey) {
+    if (
+      !viewport ||
+      !selected ||
+      !sectionId ||
+      !selectionKey ||
+      (!showStructure && !showBoxModel)
+    ) {
       setRects(undefined);
       return;
     }
@@ -360,22 +421,32 @@ function BoxModelOverlay({
     const update = () => setRects(measureBoxModel(target, viewport, zoom));
     update();
 
-    const resizeObserver = new ResizeObserver(update);
-    const mutationObserver = new MutationObserver(update);
+    const measurement = createAnimationFrameScheduler(update);
+    const resizeObserver = new ResizeObserver(measurement.schedule);
+    const mutationObserver = new MutationObserver(measurement.schedule);
     resizeObserver.observe(target);
     resizeObserver.observe(viewport);
     mutationObserver.observe(target, {
       attributes: true,
       attributeFilter: ["class", "style"],
     });
-    window.addEventListener("resize", update);
+    window.addEventListener("resize", measurement.schedule);
 
     return () => {
       resizeObserver.disconnect();
       mutationObserver.disconnect();
-      window.removeEventListener("resize", update);
+      window.removeEventListener("resize", measurement.schedule);
+      measurement.cancel();
     };
-  }, [previewMode, sectionId, selectionKey, viewportRef, zoom]);
+  }, [
+    previewMode,
+    sectionId,
+    selectionKey,
+    showBoxModel,
+    showStructure,
+    viewportRef,
+    zoom,
+  ]);
 
   if (!rects) return null;
 
@@ -393,112 +464,14 @@ function BoxModelOverlay({
           />
         </>
       )}
-      <OverlayLayer
-        rect={rects.content}
-        className="box-model-overlay-content"
-      />
+      {showStructure && (
+        <OverlayLayer
+          rect={rects.content}
+          className="box-model-overlay-content"
+        />
+      )}
     </Box>
   );
-}
-
-function findSelectedTarget(viewport: HTMLElement, selected: SelectedElement) {
-  if (!("sectionId" in selected)) return undefined;
-  const key = selectedElementKey(selected);
-  const targetSelector = `[data-editor-section-id="${CSS.escape(selected.sectionId)}"][data-editor-selection-key="${CSS.escape(key)}"]`;
-  const matchingTargets = Array.from(
-    viewport.querySelectorAll<HTMLElement>(targetSelector),
-  );
-
-  return (
-    matchingTargets.find((element) => element.getClientRects().length > 0) ||
-    matchingTargets[0]
-  );
-}
-
-function resolveHtmlSelector(
-  viewport: HTMLElement | null,
-  selected: SelectedElement | undefined,
-  sections: Portfolio["sections"],
-) {
-  if (!selected) return "—";
-  if (selected.kind === "head" || selected.kind === "body") {
-    return selected.kind;
-  }
-
-  const selectedTarget = viewport
-    ? findSelectedTarget(viewport, selected)
-    : undefined;
-  const target =
-    selected.kind === "image"
-      ? selectedTarget?.querySelector<HTMLElement>("img") || selectedTarget
-      : selectedTarget;
-  const tagName =
-    selected.kind === "image"
-      ? "img"
-      : target?.tagName.toLowerCase() || fallbackTagName(selected, sections);
-  const id = target?.id || semanticSelectorId(selected, sections);
-
-  return id ? `${tagName}#${id}` : tagName;
-}
-
-function fallbackTagName(
-  selected: SelectedElement,
-  sections: Portfolio["sections"],
-) {
-  if (selected.kind === "section") {
-    const type = sections.find((item) => item.id === selected.sectionId)?.type;
-    if (type === "header" || type === "footer") return type;
-    return "section";
-  }
-  if (selected.kind === "image") return "img";
-  if (selected.kind === "text") {
-    if (selected.field === "headline") return "h1";
-    if (selected.field === "title") return "h2";
-    if (selected.field === "contactButton") return "a";
-    if (selected.field === "description") return "p";
-    return "span";
-  }
-  if (selected.kind === "layer") {
-    return selected.layerId.startsWith("navigation-link:") ? "a" : "div";
-  }
-  return "article";
-}
-
-function semanticSelectorId(
-  selected: SelectedElement,
-  sections: Portfolio["sections"],
-) {
-  if (!("sectionId" in selected)) return "";
-  const section = sections.find((item) => item.id === selected.sectionId);
-  const sectionName = section?.type || "element";
-
-  if (selected.kind === "section") return sectionName;
-  if (selected.kind === "image") return normalizeSelectorId(selected.slot);
-  if (selected.kind === "text") {
-    if (selected.field === "logoText") {
-      return sectionName === "footer" ? "footer-name" : `${sectionName}-logo`;
-    }
-    return `${sectionName}-${normalizeSelectorId(selected.field)}`;
-  }
-  if (selected.kind === "layer") {
-    if (selected.layerId.startsWith("navigation-link:")) {
-      const targetId = selected.layerId.slice("navigation-link:".length);
-      const targetSection = sections.find((item) => item.id === targetId);
-      return `navigation-${targetSection?.type || "link"}`;
-    }
-    return normalizeSelectorId(selected.layerId);
-  }
-  if (selected.kind === "project") return "project-card";
-  if (selected.kind === "certification") return "certification-card";
-  return "service-card";
-}
-
-function normalizeSelectorId(value: string) {
-  return value
-    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 function OverlayLayer({

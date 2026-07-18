@@ -1,6 +1,7 @@
 import { Field, HStack, Input, NativeSelect } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import type { SizeValue } from "../../types/portfolio";
+import { useEditorControlSize } from "../editor/EditorSizeContext";
 
 export function SizeInput({
   label,
@@ -11,8 +12,10 @@ export function SizeInput({
   value?: SizeValue;
   onChange: (value: SizeValue | undefined) => void;
 }) {
+  const controlSize = useEditorControlSize();
   const unit = value?.unit || "px";
-  const externalValue = value?.value?.toString() ?? "";
+  const externalValue =
+    unit === "fill" ? "100" : (value?.value?.toString() ?? "");
   const [draft, setDraft] = useState(externalValue);
 
   useEffect(() => setDraft(externalValue), [externalValue]);
@@ -21,6 +24,10 @@ export function SizeInput({
     nextUnit: SizeValue["unit"] = unit,
     preserveEmptyUnit = false,
   ) => {
+    if (nextUnit === "fill") {
+      if (value?.unit !== "fill") onChange({ unit: "fill" });
+      return;
+    }
     const nextValue = draft === "" ? undefined : Number(draft);
     if (nextValue !== undefined && !Number.isFinite(nextValue)) return;
     const next = nextValue === undefined
@@ -35,8 +42,9 @@ export function SizeInput({
       <HStack gap={1} w="full">
         <Input
           flex={1}
-          size="xs"
+          size={controlSize}
           type="number"
+          disabled={unit === "fill"}
           min="0"
           max={unit === "%" ? "100" : "2000"}
           value={draft}
@@ -46,16 +54,18 @@ export function SizeInput({
             if (event.key === "Enter") event.currentTarget.blur();
           }}
         />
-        <NativeSelect.Root size="xs" w="128px">
+        <NativeSelect.Root size={controlSize} w="128px">
           <NativeSelect.Field
             value={unit}
             onChange={(event) => {
               const nextUnit = event.target.value as SizeValue["unit"];
+              if (nextUnit === "fill") setDraft("100");
               commit(nextUnit, true);
             }}
           >
             <option value="px">px</option>
             <option value="%">%</option>
+            <option value="fill">Fill (100%)</option>
           </NativeSelect.Field>
           <NativeSelect.Indicator />
         </NativeSelect.Root>

@@ -1,5 +1,6 @@
 import { Field, Input } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
+import { useEditorControlSize } from "../editor/EditorSizeContext";
 
 export function TextInput({
   label,
@@ -12,6 +13,7 @@ export function TextInput({
   limit?: number;
   onChange: (value: string) => void;
 }) {
+  const controlSize = useEditorControlSize();
   const [draft, setDraft] = useState(value);
 
   useEffect(() => setDraft(value), [value]);
@@ -24,7 +26,7 @@ export function TextInput({
     <Field.Root>
       <Field.Label>{label}</Field.Label>
       <Input
-        size="xs"
+        size={controlSize}
         value={draft}
         maxLength={limit}
         onChange={(event) => setDraft(event.target.value)}
