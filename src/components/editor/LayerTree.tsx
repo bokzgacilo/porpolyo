@@ -22,6 +22,7 @@ import {
   Image,
   Layers3,
   MousePointer2,
+  MousePointerClick,
   Rows3,
   Square,
   Trash2,
@@ -760,6 +761,7 @@ function layerIcon(layer: LayerNode) {
   if (layer.customType === "text" || layer.selection.kind === "text") {
     return Type;
   }
+  if (layer.customType === "button") return MousePointerClick;
   if (layer.customType === "image" || layer.selection.kind === "image") {
     return Image;
   }

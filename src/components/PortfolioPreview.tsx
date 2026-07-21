@@ -8,6 +8,7 @@ import { palettes } from "../data/templates";
 import { useEditorStore } from "../store/editorStore";
 import {
   CertificationItem,
+  CustomTextTag,
   CustomLayer,
   ElementSettings,
   ImageAsset,
@@ -491,6 +492,7 @@ function boxSpacingValue(value?: number, unit = "px") {
 function sectionSizeValue(size?: SizeValue) {
   if (!size) return undefined;
   if (size.unit === "fill") return "100%";
+  if (size.unit === "fit-content") return "fit-content";
   return size.value !== undefined ? `${size.value}${size.unit}` : undefined;
 }
 
@@ -1829,8 +1831,44 @@ function CustomLayerView({
     );
   }
 
+  if (layer.type === "button") {
+    const content = layer.text || "Button";
+    const handleClick = (event: React.MouseEvent) => {
+      if (editable) event.preventDefault();
+      selectLayer(event);
+    };
+    if (layer.htmlTag === "a") {
+      return (
+        <a
+          {...target}
+          id={`custom-${layer.id}`}
+          className={`portfolio-button ${className}`}
+          style={style}
+          href={layer.href?.trim() || "#"}
+          onClick={handleClick}
+        >
+          {content}
+        </a>
+      );
+    }
+    return (
+      <button
+        {...target}
+        id={`custom-${layer.id}`}
+        className={`portfolio-button ${className}`}
+        style={style}
+        type="button"
+        onClick={selectLayer}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  const TextTag = isCustomTextTag(layer.htmlTag) ? layer.htmlTag : "p";
+
   return (
-    <p
+    <TextTag
       {...target}
       id={`custom-${layer.id}`}
       className={className}
@@ -1838,7 +1876,20 @@ function CustomLayerView({
       onClick={selectLayer}
     >
       {layer.text || "New text layer"}
-    </p>
+    </TextTag>
+  );
+}
+
+function isCustomTextTag(tag: CustomLayer["htmlTag"]): tag is CustomTextTag {
+  return (
+    tag === "h1" ||
+    tag === "h2" ||
+    tag === "h3" ||
+    tag === "h4" ||
+    tag === "h5" ||
+    tag === "h6" ||
+    tag === "p" ||
+    tag === "label"
   );
 }
 

@@ -26,6 +26,9 @@ import {
   BorderRadiusValues,
   CertificationItem,
   ColorPalette,
+  CustomButtonTag,
+  CustomLayer,
+  CustomTextTag,
   ElementSettings,
   ImageAsset,
   Portfolio,
@@ -49,6 +52,8 @@ import {
   Button,
   Checkbox,
   Field,
+  HStack,
+  IconButton,
   Input,
   NativeSelect,
   Stack,
@@ -58,7 +63,9 @@ import {
 import {
   LuChevronDown,
   LuChevronRight,
+  LuClipboardCopy,
   LuClipboardPen,
+  LuClipboardPaste,
   LuPaintbrush,
   LuPlus,
   LuTrash2,
@@ -98,6 +105,7 @@ import { useEditorControlSize } from "./editor/EditorSizeContext";
 
 export function PropertiesPanel() {
   const controlSize = useEditorControlSize();
+  const [styleClipboard, setStyleClipboard] = useState<LayerStyleClipboard>();
   const { portfolio, selected } = useEditorStore(
     useShallow((state) => ({
       portfolio: state.portfolio,
@@ -111,6 +119,7 @@ export function PropertiesPanel() {
       updateCollectionItem: state.updateCollectionItem,
       updateCustomLayer: state.updateCustomLayer,
       updateElementSettings: state.updateElementSettings,
+      replaceElementSettings: state.replaceElementSettings,
       updatePortfolioSettings: state.updatePortfolioSettings,
       updateSection: state.updateSection,
       updateSectionContent: state.updateSectionContent,
@@ -305,6 +314,29 @@ export function PropertiesPanel() {
     if (selectedKey)
       store.updateElementSettings(section.id, selectedKey, updates);
   };
+  const styleTarget = resolveLayerStyleTarget(
+    selected,
+    selectedCustomLayer,
+    selectedIsContainer,
+  );
+  const canCopyStyle = !!selectedKey && !!styleTarget;
+  const canPasteStyle =
+    canCopyStyle && styleClipboard?.kind === styleTarget?.kind;
+  const copyLayerStyle = () => {
+    if (!styleTarget || !selectedKey) return;
+    setStyleClipboard({
+      ...styleTarget,
+      settings: cloneLayerStyle(elementSettings || {}),
+    });
+  };
+  const pasteLayerStyle = () => {
+    if (!canPasteStyle || !selectedKey || !styleClipboard) return;
+    store.replaceElementSettings(
+      section.id,
+      selectedKey,
+      cloneLayerStyle(styleClipboard.settings),
+    );
+  };
 
   return (
     <Stack
@@ -320,25 +352,47 @@ export function PropertiesPanel() {
       overflowX="hidden"
       overflowY="auto"
     >
-      <Text px={4} pt={4} color="fg" fontWeight="semibold">
-        Properties
-      </Text>
-      <Tabs.Root
-        key={selectedCustomLayer ? "custom-content-only" : "standard-inspector"}
-        defaultValue="content"
-        variant="line"
-      >
+      <HStack px={4} pt={4} justify="space-between" gap={2}>
+        <Text color="fg" fontWeight="semibold">
+          Properties
+        </Text>
+        <HStack gap={1}>
+          <IconButton
+            aria-label="Copy layer style"
+            title={
+              canCopyStyle
+                ? `Copy ${styleTarget?.label} style`
+                : "Select a layer to copy its style"
+            }
+            disabled={!canCopyStyle}
+            size={controlSize}
+            variant="ghost"
+            onClick={copyLayerStyle}
+          >
+            <LuClipboardCopy />
+          </IconButton>
+          <IconButton
+            aria-label="Paste layer style"
+            title={pasteLayerStyleTitle(styleClipboard, styleTarget)}
+            disabled={!canPasteStyle}
+            size={controlSize}
+            variant="ghost"
+            onClick={pasteLayerStyle}
+          >
+            <LuClipboardPaste />
+          </IconButton>
+        </HStack>
+      </HStack>
+      <Tabs.Root defaultValue="content" variant="line">
         <Tabs.List>
           <Tabs.Trigger flex={1} value="content">
             <LuClipboardPen />
             Content
           </Tabs.Trigger>
-          {!selectedCustomLayer && (
-            <Tabs.Trigger flex={1} value="styling">
-              <LuPaintbrush />
-              Styling
-            </Tabs.Trigger>
-          )}
+          <Tabs.Trigger flex={1} value="styling">
+            <LuPaintbrush />
+            Styling
+          </Tabs.Trigger>
         </Tabs.List>
 
         <Tabs.Content value="content" p={0}>
@@ -479,22 +533,103 @@ export function PropertiesPanel() {
                   {selectedCustomLayer.type === "div" && (
                     <Text p={4} color="fg.muted" fontSize="sm">
                       Select this Div, then use Add layer to place Text, Image,
-                      or another Div inside it.
+                      Button, or another Div inside it.
                     </Text>
                   )}
                   {selectedCustomLayer.type === "text" && (
-                    <TextAreaInput
-                      label="Text content"
-                      value={selectedCustomLayer.text || ""}
-                      limit={1000}
-                      onChange={(text) =>
-                        store.updateCustomLayer(
-                          section.id,
-                          selectedCustomLayer.id,
-                          { text: text.slice(0, 1000) },
-                        )
-                      }
-                    />
+                    <>
+                      <TextAreaInput
+                        label="Text content"
+                        value={selectedCustomLayer.text || ""}
+                        limit={1000}
+                        onChange={(text) =>
+                          store.updateCustomLayer(
+                            section.id,
+                            selectedCustomLayer.id,
+                            { text: text.slice(0, 1000) },
+                          )
+                        }
+                      />
+                      <Field.Root>
+                        <Field.Label>HTML tag</Field.Label>
+                        <NativeSelect.Root size={controlSize}>
+                          <NativeSelect.Field
+                            value={selectedCustomLayer.htmlTag || "p"}
+                            onChange={(event) =>
+                              store.updateCustomLayer(
+                                section.id,
+                                selectedCustomLayer.id,
+                                {
+                                  htmlTag: event.currentTarget
+                                    .value as CustomTextTag,
+                                },
+                              )
+                            }
+                          >
+                            <option value="h1">Heading 1 (h1)</option>
+                            <option value="h2">Heading 2 (h2)</option>
+                            <option value="h3">Heading 3 (h3)</option>
+                            <option value="h4">Heading 4 (h4)</option>
+                            <option value="h5">Heading 5 (h5)</option>
+                            <option value="h6">Heading 6 (h6)</option>
+                            <option value="p">Paragraph (p)</option>
+                            <option value="label">Label</option>
+                          </NativeSelect.Field>
+                          <NativeSelect.Indicator />
+                        </NativeSelect.Root>
+                      </Field.Root>
+                    </>
+                  )}
+                  {selectedCustomLayer.type === "button" && (
+                    <>
+                      <TextInput
+                        label="Button text"
+                        value={selectedCustomLayer.text || ""}
+                        limit={120}
+                        onChange={(text) =>
+                          store.updateCustomLayer(
+                            section.id,
+                            selectedCustomLayer.id,
+                            { text: text.slice(0, 120) },
+                          )
+                        }
+                      />
+                      <Field.Root>
+                        <Field.Label>HTML tag</Field.Label>
+                        <NativeSelect.Root size={controlSize}>
+                          <NativeSelect.Field
+                            value={selectedCustomLayer.htmlTag || "button"}
+                            onChange={(event) =>
+                              store.updateCustomLayer(
+                                section.id,
+                                selectedCustomLayer.id,
+                                {
+                                  htmlTag: event.currentTarget
+                                    .value as CustomButtonTag,
+                                },
+                              )
+                            }
+                          >
+                            <option value="button">Button</option>
+                            <option value="a">Link (a)</option>
+                          </NativeSelect.Field>
+                          <NativeSelect.Indicator />
+                        </NativeSelect.Root>
+                      </Field.Root>
+                      {selectedCustomLayer.htmlTag === "a" && (
+                        <TextInput
+                          label="Link URL"
+                          value={selectedCustomLayer.href || ""}
+                          onChange={(href) =>
+                            store.updateCustomLayer(
+                              section.id,
+                              selectedCustomLayer.id,
+                              { href },
+                            )
+                          }
+                        />
+                      )}
+                    </>
                   )}
                   {selectedCustomLayer.type === "image" && (
                     <ImageInspector
@@ -512,27 +647,6 @@ export function PropertiesPanel() {
                     />
                   )}
                 </ContentGroup>
-              )}
-              {selectedCustomLayer && selectedIsContainer && (
-                <ContentGroup title="Layout">
-                  <ElementLayoutControls
-                    settings={elementSettings || {}}
-                    onChange={updateSelectedElement}
-                  />
-                </ContentGroup>
-              )}
-              {selectedCustomLayer && (
-                <ElementStyleControls
-                  selected={selected}
-                  settings={elementSettings || {}}
-                  fallbackColor={section.settings.textColor || palette.text}
-                  swatches={swatches}
-                  computedBoxModel={computedBoxModel}
-                  defaultFontFamily={templateFontFamily}
-                  includeText={selectedCustomLayer.type === "text"}
-                  collapsible={false}
-                  onChange={updateSelectedElement}
-                />
               )}
               {section.type === "header" &&
                 !selectedCustomLayer &&
@@ -929,7 +1043,7 @@ export function PropertiesPanel() {
             </Stack>
           )}
 
-          {selected.kind === "layer" && !selectedCustomLayer && (
+          {selected.kind === "layer" && (
             <Stack gap={0}>
               {selectedIsContainer && (
                 <PropertyGroup title="Layout" defaultOpen>
@@ -948,9 +1062,11 @@ export function PropertiesPanel() {
                 defaultFontFamily={templateFontFamily}
                 includeSize={!getNestedImageTarget(selected)}
                 includeText={
-                  section.type === "header" &&
+                  selectedCustomLayer?.type === "text" ||
+                  selectedCustomLayer?.type === "button" ||
+                  (section.type === "header" &&
                     (selected.layerId === "navigation" ||
-                      selected.layerId.startsWith("navigation-link:"))
+                      selected.layerId.startsWith("navigation-link:")))
                 }
                 onChange={updateSelectedElement}
               />
@@ -1800,6 +1916,84 @@ function collectionLabel(type: string) {
   return "service";
 }
 
+type LayerStyleTarget = {
+  kind: string;
+  label: string;
+};
+
+type LayerStyleClipboard = LayerStyleTarget & {
+  settings: ElementSettings;
+};
+
+function resolveLayerStyleTarget(
+  selected: SelectedElement,
+  customLayer: CustomLayer | undefined,
+  isContainer: boolean,
+): LayerStyleTarget | undefined {
+  if (customLayer) {
+    const labels: Record<CustomLayer["type"], string> = {
+      div: "Div",
+      text: "Text",
+      image: "Image",
+      button: "Button",
+    };
+    return { kind: customLayer.type, label: labels[customLayer.type] };
+  }
+  if (selected.kind === "text") return { kind: "text", label: "Text" };
+  if (selected.kind === "image") return { kind: "image", label: "Image" };
+  if (selected.kind === "project") {
+    return { kind: "project", label: "Project card" };
+  }
+  if (selected.kind === "certification") {
+    return { kind: "certification", label: "Certification card" };
+  }
+  if (selected.kind === "service") {
+    return { kind: "service", label: "Service card" };
+  }
+  if (selected.kind !== "layer") return undefined;
+  if (isContainer) return { kind: "div", label: "Div" };
+  if (getNestedImageTarget(selected)) {
+    return { kind: "image", label: "Image" };
+  }
+  if (/:(title|description)$/.test(selected.layerId)) {
+    return { kind: "text", label: "Text" };
+  }
+  if (
+    selected.layerId === "back-to-top" ||
+    selected.layerId.startsWith("navigation-link:") ||
+    selected.layerId.startsWith("social-link:") ||
+    selected.layerId.endsWith(":cta")
+  ) {
+    return { kind: "button", label: "Button" };
+  }
+  const collectionChild = selected.layerId.match(
+    /^(project|certification|service):[^:]+:(.+)$/,
+  );
+  const kind = collectionChild
+    ? `layer:${collectionChild[1]}:${collectionChild[2]}`
+    : `layer:${selected.layerId}`;
+  return { kind, label: selected.label };
+}
+
+function cloneLayerStyle(settings: ElementSettings): ElementSettings {
+  const clone = structuredClone(settings);
+  delete clone.anchor;
+  delete clone.order;
+  return clone;
+}
+
+function pasteLayerStyleTitle(
+  clipboard: LayerStyleClipboard | undefined,
+  target: LayerStyleTarget | undefined,
+) {
+  if (!clipboard) return "Copy a layer style first";
+  if (!target) return `Select a ${clipboard.label} layer to paste its style`;
+  if (clipboard.kind !== target.kind) {
+    return `${clipboard.label} styles can only be pasted onto ${clipboard.label} layers`;
+  }
+  return `Paste ${clipboard.label} style`;
+}
+
 function getNestedImageTarget(selected: SelectedElement) {
   if (selected.kind !== "layer") return undefined;
   const projectMatch = selected.layerId.match(/^project:([^:]+):image$/);
@@ -1849,7 +2043,13 @@ function resolvedSizeValue(
   saved?: SizeValue,
   computed?: number,
 ): SizeValue | undefined {
-  if (saved?.unit === "fill" || saved?.value !== undefined) return saved;
+  if (
+    saved?.unit === "fill" ||
+    saved?.unit === "fit-content" ||
+    saved?.value !== undefined
+  ) {
+    return saved;
+  }
   return computed !== undefined ? { value: computed, unit: "px" } : undefined;
 }
 

@@ -15,7 +15,11 @@ export function SizeInput({
   const controlSize = useEditorControlSize();
   const unit = value?.unit || "px";
   const externalValue =
-    unit === "fill" ? "100" : (value?.value?.toString() ?? "");
+    unit === "fill"
+      ? "100"
+      : unit === "fit-content"
+        ? ""
+        : (value?.value?.toString() ?? "");
   const [draft, setDraft] = useState(externalValue);
 
   useEffect(() => setDraft(externalValue), [externalValue]);
@@ -24,8 +28,8 @@ export function SizeInput({
     nextUnit: SizeValue["unit"] = unit,
     preserveEmptyUnit = false,
   ) => {
-    if (nextUnit === "fill") {
-      if (value?.unit !== "fill") onChange({ unit: "fill" });
+    if (nextUnit === "fill" || nextUnit === "fit-content") {
+      if (value?.unit !== nextUnit) onChange({ unit: nextUnit });
       return;
     }
     const nextValue = draft === "" ? undefined : Number(draft);
@@ -44,7 +48,7 @@ export function SizeInput({
           flex={1}
           size={controlSize}
           type="number"
-          disabled={unit === "fill"}
+          disabled={unit === "fill" || unit === "fit-content"}
           min="0"
           max={unit === "%" ? "100" : "2000"}
           value={draft}
@@ -60,12 +64,14 @@ export function SizeInput({
             onChange={(event) => {
               const nextUnit = event.target.value as SizeValue["unit"];
               if (nextUnit === "fill") setDraft("100");
+              if (nextUnit === "fit-content") setDraft("");
               commit(nextUnit, true);
             }}
           >
-            <option value="px">px</option>
-            <option value="%">%</option>
-            <option value="fill">Fill (100%)</option>
+            <option value="px">Fixed (px)</option>
+            <option value="%">Relative (%)</option>
+            <option value="fill">Fill</option>
+            <option value="fit-content">Fit content</option>
           </NativeSelect.Field>
           <NativeSelect.Indicator />
         </NativeSelect.Root>

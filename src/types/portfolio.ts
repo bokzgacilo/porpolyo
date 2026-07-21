@@ -168,7 +168,7 @@ export type TypographyUnit = "rem" | "em" | "px" | "%" | "ch";
 
 export interface SizeValue {
   value?: number;
-  unit: "px" | "%" | "fill";
+  unit: "px" | "%" | "fill" | "fit-content";
 }
 
 export interface ProjectItem {
@@ -228,13 +228,27 @@ export interface ContentField<T = unknown> {
 
 export type PortfolioContent = Record<string, ContentField>;
 
-export type CustomLayerType = "div" | "text" | "image";
+export type CustomLayerType = "div" | "text" | "image" | "button";
+
+export type CustomTextTag =
+  | "h1"
+  | "h2"
+  | "h3"
+  | "h4"
+  | "h5"
+  | "h6"
+  | "p"
+  | "label";
+
+export type CustomButtonTag = "button" | "a";
 
 export interface CustomLayer {
   id: string;
   type: CustomLayerType;
   name: string;
   text?: string;
+  htmlTag?: CustomTextTag | CustomButtonTag;
+  href?: string;
   image?: ImageAsset;
   parentLayerId?: string;
   children?: CustomLayer[];

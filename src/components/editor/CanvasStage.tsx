@@ -11,6 +11,7 @@ import type React from "react";
 import {
   LuImagePlus,
   LuLayers,
+  LuMousePointerClick,
   LuPanelTop,
   LuPlus,
   LuSquareDashed,
@@ -341,6 +342,9 @@ export function CanvasStage({
                         </Menu.Item>
                         <Menu.Item value="image" onSelect={() => onAddLayer("image")}>
                           <LuImagePlus /> Image
+                        </Menu.Item>
+                        <Menu.Item value="button" onSelect={() => onAddLayer("button")}>
+                          <LuMousePointerClick /> Button
                         </Menu.Item>
                       </Menu.Content>
                     </Menu.Positioner>

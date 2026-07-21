@@ -3,7 +3,11 @@ import { Box } from "@chakra-ui/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { useEditorStore } from "../store/editorStore";
-import { CustomLayerType, SelectedElement } from "../types/portfolio";
+import {
+  CustomLayer,
+  CustomLayerType,
+  SelectedElement,
+} from "../types/portfolio";
 import { findCustomLayer } from "../utils/customLayers";
 import { selectedElementKey } from "../utils/elementSettings";
 import { PropertiesPanel } from "./PropertiesPanel";
@@ -214,14 +218,16 @@ export function Editor({
         const section = portfolio?.sections.find(
           (item) => item.id === selected.sectionId,
         );
-        const isCustomText =
+        const isCustomTextElement =
           selected.kind === "layer" &&
           selected.layerId.startsWith("custom:") &&
-          findCustomLayer(
-            section?.customLayers,
-            selected.layerId.slice("custom:".length),
-          )?.type === "text";
-        if (selected.kind !== "text" && !isCustomText) return;
+          ["text", "button"].includes(
+            findCustomLayer(
+              section?.customLayers,
+              selected.layerId.slice("custom:".length),
+            )?.type || "",
+          );
+        if (selected.kind !== "text" && !isCustomTextElement) return;
         event.preventDefault();
         const elementKey = selectedElementKey(selected);
         const currentWeight = section?.elements?.[elementKey]?.fontWeight;
@@ -314,18 +320,7 @@ export function Editor({
       const id = crypto.randomUUID();
       addCustomLayer(
         selectedSection.id,
-        {
-          id,
-          type,
-          name:
-            type === "div"
-              ? "New div"
-              : type === "text"
-                ? "New text"
-                : "New image",
-          text: type === "text" ? "New text layer" : undefined,
-          children: type === "div" ? [] : undefined,
-        },
+        createCustomLayer(id, type),
         insertionParentId,
       );
       if (insertionParentId) {
@@ -342,12 +337,7 @@ export function Editor({
         kind: "layer",
         sectionId: selectedSection.id,
         layerId: `custom:${id}`,
-        label:
-          type === "div"
-            ? "New div"
-            : type === "text"
-              ? "New text"
-              : "New image",
+        label: customLayerName(type),
       });
     }, [
       addCustomLayer,
@@ -593,4 +583,30 @@ export function Editor({
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function customLayerName(type: CustomLayerType) {
+  const names: Record<CustomLayerType, string> = {
+    div: "New div",
+    text: "New text",
+    image: "New image",
+    button: "New button",
+  };
+  return names[type];
+}
+
+function createCustomLayer(id: string, type: CustomLayerType): CustomLayer {
+  return {
+    id,
+    type,
+    name: customLayerName(type),
+    text:
+      type === "text"
+        ? "New text layer"
+        : type === "button"
+          ? "Button"
+          : undefined,
+    htmlTag: type === "text" ? "p" : type === "button" ? "button" : undefined,
+    children: type === "div" ? [] : undefined,
+  };
 }

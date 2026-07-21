@@ -14,9 +14,7 @@ import {
 } from "@chakra-ui/react";
 import NextLink from "next/link";
 import {
-  LuArrowRight,
   LuArrowUpRight,
-  LuBookOpen,
   LuCheck,
   LuCircleDashed,
 } from "react-icons/lu";
@@ -99,103 +97,6 @@ const sprintTwoPriorities = [
   },
 ];
 
-const dayZeroUpdates = [
-  {
-    title: "Application foundation",
-    detail:
-      "Established the Next.js, React, TypeScript, and Chakra UI application with landing, onboarding, dashboard, builder, settings, preview, and public portfolio routes.",
-  },
-  {
-    title: "Typed portfolio system",
-    detail:
-      "Defined the portfolio data model, section and collection item types, default content, templates, palettes, limits, and element-to-CSS utilities.",
-  },
-  {
-    title: "Visual editing workflow",
-    detail:
-      "Built section and layer navigation, direct canvas selection, drag ordering, responsive preview modes, zoom and pan controls, property editing, box-model tools, and undo/redo.",
-  },
-  {
-    title: "Supabase project lifecycle",
-    detail:
-      "Connected Google authentication, portfolio creation and persistence, publishing, public project reads, owner-scoped project management, and protected image uploads.",
-  },
-  {
-    title: "Launch and project documentation",
-    detail:
-      "Added metadata and social previews, analytics summaries, UTM generation, repository safeguards, and a README covering setup, routes, architecture, and security boundaries.",
-  },
-];
-
-const dayZeroTomorrow = [
-  {
-    title: "Connect every layout variant",
-    detail:
-      "Turn template and section variant choices into complete responsive compositions.",
-  },
-  {
-    title: "Plan autosave and durable versions",
-    detail:
-      "Define debounced saving, recovery states, and named versions that persist across sessions.",
-  },
-  {
-    title: "Prepare publishing validation",
-    detail:
-      "Identify checks for missing content, broken links, image alt text, metadata, and username availability.",
-  },
-];
-
-const dayOneUpdates = [
-  {
-    title: "Canvas and responsive preview workflow",
-    detail:
-      "Stabilized fixed desktop, tablet, and mobile canvas widths; repaired Space-drag panning, outside-canvas deselection, reset-to-fit centering, and the fixed preview breakpoint toolbar.",
-  },
-  {
-    title: "Nested layer builder",
-    detail:
-      "Converted Layers into a Chakra UI tree and added nested custom Div, Text, and Image layers with drag ordering, Div nesting, template-container drop targets, deletion, rendering, and persisted JSON data.",
-  },
-  {
-    title: "Layout and property controls",
-    detail:
-      "Added Stack and Grid controls for sections and element containers, Structure and Box Model guides, single-open property accordions, configurable image behavior, searchable font selection, and typography units.",
-  },
-  {
-    title: "Editor history and onboarding",
-    detail:
-      "Added five-step change history, grouped input edits, undo and redo restoration, a Driver.js editor tour, and persisted editor preferences for tours, panel sizing, and box-model overlays.",
-  },
-  {
-    title: "Project settings and metrics",
-    detail:
-      "Separated Project Settings, Metrics, SEO/AEO, and Editor Settings; introduced a responsive Recharts analytics visualization; and retained social previews and UTM tracking tools.",
-  },
-  {
-    title: "Maintainability and release preparation",
-    detail:
-      "Moved reusable property inputs and image configuration into focused modules, expanded repository documentation and safeguards, and added privacy, terms, and development-diary pages.",
-  },
-];
-
-const dayOneTomorrow = [
-  {
-    title: "Validate custom layers across templates",
-    detail:
-      "Test nesting, layout, image behavior, history restoration, saving, publishing, and responsive output across every section and template.",
-  },
-  {
-    title: "Define template-element ordering",
-    detail:
-      "Design a safe ordering model for protected template elements without breaking their semantic structure or responsive renderer.",
-  },
-  {
-    title: "Deepen metrics and SEO/AEO",
-    detail:
-      "Add useful time ranges, traffic sources, interactions, metadata validation, structured-data guidance, and pre-publish checks.",
-  },
-];
-
 export default function DevelopmentPage() {
   return (
     <Box as="main" minH="100svh" bg="bg" color="fg">
@@ -241,11 +142,11 @@ export default function DevelopmentPage() {
                 Sprint 2
               </Link>
               <Link
-                href="#dev-diary"
+                asChild
                 color="fg.muted"
                 display={{ base: "none", md: "inline-flex" }}
               >
-                Dev diary
+                <NextLink href="/changelogs">Changelogs</NextLink>
               </Link>
               <ColorModeButton />
               <Button colorPalette="blue" asChild>
@@ -420,204 +321,6 @@ export default function DevelopmentPage() {
               ))}
             </Box>
           </Grid>
-        </Container>
-      </Box>
-
-      <Box
-        id="dev-diary"
-        as="section"
-        scrollMarginTop="6"
-        borderTopWidth="1px"
-        borderColor="border"
-      >
-        <Container maxW="6xl" py={{ base: 16, md: 24 }}>
-          <Stack gap={{ base: 10, md: 14 }}>
-            <Stack gap="5" maxW="2xl">
-              <HStack gap="2" color="blue.solid">
-                <LuBookOpen aria-hidden="true" />
-                <Text
-                  fontSize="xs"
-                  fontWeight="700"
-                  textTransform="uppercase"
-                  letterSpacing="0.12em"
-                >
-                  Daily notes
-                </Text>
-              </HStack>
-              <Heading
-                as="h2"
-                fontSize={{ base: "4xl", md: "5xl" }}
-                letterSpacing="-0.035em"
-              >
-                Dev diary
-              </Heading>
-              <Text color="fg.muted">
-                Short records of what changed and what the next work session
-                should move forward.
-              </Text>
-            </Stack>
-
-            <Grid
-              templateColumns={{ base: "1fr", md: "210px minmax(0, 1fr)" }}
-              borderWidth="1px"
-              borderColor="border"
-              rounded="xl"
-              overflow="hidden"
-            >
-              <Stack
-                as="nav"
-                aria-label="Development diary days"
-                gap={0}
-                bg="bg.subtle"
-                borderRightWidth={{ base: "0", md: "1px" }}
-                borderBottomWidth={{ base: "1px", md: "0" }}
-                borderColor="border"
-              >
-                <Text
-                  px="5"
-                  py="4"
-                  color="fg.muted"
-                  fontSize="xs"
-                  fontWeight="700"
-                  textTransform="uppercase"
-                  letterSpacing="0.12em"
-                >
-                  Days
-                </Text>
-                <Link
-                  href="#day-1"
-                  aria-current="page"
-                  display="block"
-                  px="5"
-                  py="5"
-                  bg="blue.subtle"
-                  borderTopWidth="1px"
-                  borderLeftWidth="3px"
-                  borderColor="border"
-                  borderLeftColor="blue.solid"
-                  textDecoration="none"
-                  _hover={{ bg: "blue.muted" }}
-                >
-                  <Stack gap="1">
-                    <Text fontWeight="700">Day 1</Text>
-                    <Text color="fg.muted" fontSize="sm">
-                      Alpha 1 editor pass
-                    </Text>
-                  </Stack>
-                </Link>
-                <Link
-                  href="#day-0"
-                  display="block"
-                  px="5"
-                  py="5"
-                  borderTopWidth="1px"
-                  borderColor="border"
-                  textDecoration="none"
-                  _hover={{ bg: "bg.muted" }}
-                >
-                  <Stack gap="1">
-                    <Text fontWeight="700">Day 0</Text>
-                    <Text color="fg.muted" fontSize="sm">
-                      Committed baseline
-                    </Text>
-                  </Stack>
-                </Link>
-              </Stack>
-
-              <Stack gap={0} minW={0}>
-                <Stack id="day-1" scrollMarginTop="6" gap={0} minW={0}>
-                  <Grid
-                    px={{ base: 6, md: 8 }}
-                    py={{ base: 8, md: 10 }}
-                    gap={{ base: 5, md: 8 }}
-                    templateColumns={{ base: "1fr", lg: "150px minmax(0, 1fr)" }}
-                    borderBottomWidth="1px"
-                    borderColor="border"
-                  >
-                    <Stack gap="2">
-                      <Text
-                        color="blue.solid"
-                        fontSize="4xl"
-                        fontWeight="800"
-                        letterSpacing="-0.05em"
-                      >
-                        Day 1
-                      </Text>
-                      <Badge
-                        alignSelf="flex-start"
-                        colorPalette="blue"
-                        variant="subtle"
-                      >
-                        Alpha 1 editor pass
-                      </Badge>
-                    </Stack>
-                    <Stack gap="3" maxW="2xl">
-                      <Heading as="h3" fontSize={{ base: "2xl", md: "3xl" }}>
-                        The builder becomes composable
-                      </Heading>
-                      <Text color="fg.muted">
-                        Recent working changes organized into the first daily
-                        development entry after the committed Day 0 baseline.
-                      </Text>
-                    </Stack>
-                  </Grid>
-
-                  <DiaryList
-                    label="Changes and updates"
-                    items={dayOneUpdates}
-                    complete
-                  />
-                  <DiaryList label="Plans for tomorrow" items={dayOneTomorrow} />
-                </Stack>
-
-                <Stack id="day-0" scrollMarginTop="6" gap={0} minW={0}>
-                <Grid
-                  px={{ base: 6, md: 8 }}
-                  py={{ base: 8, md: 10 }}
-                  gap={{ base: 5, md: 8 }}
-                  templateColumns={{ base: "1fr", lg: "150px minmax(0, 1fr)" }}
-                  borderBottomWidth="1px"
-                  borderColor="border"
-                >
-                  <Stack gap="2">
-                    <Text
-                      color="blue.solid"
-                      fontSize="4xl"
-                      fontWeight="800"
-                      letterSpacing="-0.05em"
-                    >
-                      Day 0
-                    </Text>
-                    <Badge
-                      alignSelf="flex-start"
-                      colorPalette="blue"
-                      variant="subtle"
-                    >
-                      Committed baseline
-                    </Badge>
-                  </Stack>
-                  <Stack gap="3" maxW="2xl">
-                    <Heading as="h3" fontSize={{ base: "2xl", md: "3xl" }}>
-                      The starting point
-                    </Heading>
-                    <Text color="fg.muted">
-                      Reconstructed only from repository commits beginning with
-                      the first commit. Current working changes are intentionally
-                      excluded.
-                    </Text>
-                  </Stack>
-                </Grid>
-
-                <DiaryList
-                  label="Changes and updates"
-                  items={dayZeroUpdates}
-                  complete
-                />
-                <DiaryList label="Plans for tomorrow" items={dayZeroTomorrow} />
-                </Stack>
-              </Stack>
-            </Grid>
-          </Stack>
         </Container>
       </Box>
 
@@ -816,62 +519,5 @@ function SprintMetric({ value, label }: { value: string; label: string }) {
       </Text>
       <Text color="fg.muted">{label}</Text>
     </Stack>
-  );
-}
-
-function DiaryList({
-  label,
-  items,
-  complete = false,
-}: {
-  label: string;
-  items: { title: string; detail: string }[];
-  complete?: boolean;
-}) {
-  return (
-    <Grid
-      px={{ base: 6, md: 8 }}
-      py={{ base: 8, md: 10 }}
-      gap={{ base: 6, md: 8 }}
-      templateColumns={{ base: "1fr", md: "150px minmax(0, 1fr)" }}
-      borderBottomWidth="1px"
-      borderColor="border"
-    >
-      <Text
-        color="fg.muted"
-        fontSize="xs"
-        fontWeight="700"
-        textTransform="uppercase"
-        letterSpacing="0.12em"
-      >
-        {label}
-      </Text>
-      <Stack gap={0} borderTopWidth="1px" borderColor="border">
-        {items.map((item) => (
-          <Grid
-            key={item.title}
-            py="5"
-            gap="4"
-            templateColumns="24px minmax(0, 1fr)"
-            borderBottomWidth="1px"
-            borderColor="border"
-            transition="background 160ms ease"
-            _hover={{ bg: "bg.subtle" }}
-          >
-            <Flex color={complete ? "blue.solid" : "fg.muted"} pt="1">
-              {complete ? (
-                <LuCheck aria-hidden="true" />
-              ) : (
-                <LuArrowRight aria-hidden="true" />
-              )}
-            </Flex>
-            <Stack gap="1">
-              <Text fontWeight="700">{item.title}</Text>
-              <Text color="fg.muted">{item.detail}</Text>
-            </Stack>
-          </Grid>
-        ))}
-      </Stack>
-    </Grid>
   );
 }

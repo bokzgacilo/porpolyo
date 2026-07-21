@@ -575,6 +575,21 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
 }
 
 function TemplatePreview({ palette, templateId }: { palette: (typeof palettes)[number]; templateId: string }) {
+  if (templateId === "neo-brutal") {
+    return (
+      <Image
+        src="/assets/neo-brutalism.png"
+        alt=""
+        w="full"
+        h="48"
+        objectFit="cover"
+        borderBottom="1px solid"
+        borderColor="border"
+        aria-hidden="true"
+      />
+    );
+  }
+
   if (templateId === "blank") {
     return (
       <Box

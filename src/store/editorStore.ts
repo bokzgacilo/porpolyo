@@ -55,6 +55,7 @@ interface EditorState {
   updatePortfolioSettings: (updates: Partial<Portfolio["settings"]>) => void;
   updateSection: (sectionId: string, updates: Partial<PortfolioSection>) => void;
   updateElementSettings: (sectionId: string, elementKey: string, updates: Partial<ElementSettings>) => void;
+  replaceElementSettings: (sectionId: string, elementKey: string, settings: ElementSettings) => void;
   updateSectionContent: (sectionId: string, field: string, value: unknown) => void;
   updateSectionImage: (sectionId: string, field: string, image?: ImageAsset) => void;
   reorderSections: (activeId: string, overId: string) => void;
@@ -310,6 +311,33 @@ export const useEditorStore = create<EditorState>((set) => ({
         },
         editGroup(state),
       )
+    ),
+  replaceElementSettings: (sectionId, elementKey, settings) =>
+    set((state) =>
+      mutatePortfolio(state, "Pasted layer style", (portfolio) => {
+        portfolio.sections = portfolio.sections.map((section) => {
+          if (section.id !== sectionId) return section;
+          const contentField = contentFieldFromElementKey(elementKey, section);
+          if (contentField) {
+            const current =
+              section.content[contentField] || createContentField(undefined);
+            return {
+              ...section,
+              content: {
+                ...section.content,
+                [contentField]: { ...current, style: settings },
+              },
+            };
+          }
+          return {
+            ...section,
+            elements: {
+              ...(section.elements || {}),
+              [elementKey]: settings,
+            },
+          };
+        });
+      }),
     ),
   updateSectionContent: (sectionId, field, value) =>
     set((state) =>

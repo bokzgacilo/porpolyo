@@ -604,7 +604,7 @@ export function LandingPage({
                 <NextLink href="/terms">Terms</NextLink>
               </Button>
               <Button asChild size="sm" variant="outline">
-                <NextLink href="/dev">Dev blog</NextLink>
+                <NextLink href="/changelogs">Changelogs</NextLink>
               </Button>
             </HStack>
           </Flex>

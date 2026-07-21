@@ -185,6 +185,7 @@ function typographyValue(
 function sizeValue(size?: ElementSettings["width"]) {
   if (!size) return undefined;
   if (size.unit === "fill") return "100%";
+  if (size.unit === "fit-content") return "fit-content";
   if (size.value === undefined) return undefined;
   return `${size.value}${size.unit}`;
 }
